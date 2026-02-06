@@ -1,0 +1,37 @@
+<section class="h-screen w-full relative flex items-center justify-center overflow-hidden">
+    <!-- KIBA Text - Top Left (Moves left on scroll) -->
+    <div class="kiba-container" [style.transform]="'translateX(' + (-scrollOffset * 1) + 'px)'">
+        <h1 class="kibagami-text">KIBA</h1>
+    </div>
+
+    <!-- GAMI Text - Bottom Right (Moves right on scroll) -->
+    <div class="gami-container" [style.transform]="'translateX(' + (scrollOffset * 1) + 'px)'">
+        <h1 class="kibagami-text">GAMI</h1>
+    </div>
+
+    <!-- Hero Content Group -->
+    <div class="hero-content-wrapper" [style.opacity]="1 - (scrollOffset / 800)">
+        <!-- Central Image -->
+        <div class="hero-image-container"
+            [style.transform]="'translateY(' + (scrollOffset * -0.4) + 'px) translateX(' + (scrollOffset * 1) + 'px)'">
+            <img src="assets/images/image.png" alt="Hero Image" class="hero-image">
+        </div>
+
+        <!-- Personal Info -->
+        <div class="hero-info" [style.transform]="'translateX(' + (scrollOffset * -0.5) + 'px)'">
+            <h2 class="name">Manley BOUILLE</h2>
+            <p class="title">Etudiant en BTS SIO option SLAM</p>
+        </div>
+    </div>
+
+    <!-- Subtle Scroll Hint -->
+    <div class="hero-scroll-hint absolute bottom-10 left-1/2 -translate-x-1/2 transition-all duration-200"
+        [style.transform]="'translate(-50%, 0) rotate(' + (scrollOffset > 360 ? 180 : scrollOffset / 2) + 'deg)'">
+        <div class="animate-bounce">
+            <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 14l-7 7m0 0l-7-7m7 7V3">
+                </path>
+            </svg>
+        </div>
+    </div>
+</section>
