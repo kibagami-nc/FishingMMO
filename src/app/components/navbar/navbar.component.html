@@ -1,10 +1,42 @@
 <nav class="navbar">
     <div class="nav-container">
         <ul class="nav-links">
-            <li><button (click)="scrollTo('hero')">Accueil</button></li>
-            <li><button (click)="scrollTo('presentation')">Présentation</button></li>
-            <li><button (click)="scrollTo('projects')">Projets</button></li>
-            <li><button (click)="scrollTo('contact')">Contact</button></li>
+            <li>
+                <button (click)="scrollTo('hero')" aria-label="Accueil" title="Accueil">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="nav-icon" fill="none" viewBox="0 0 24 24"
+                        stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+                    </svg>
+                </button>
+            </li>
+            <li>
+                <button (click)="scrollTo('presentation')" aria-label="Présentation" title="Présentation">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="nav-icon" fill="none" viewBox="0 0 24 24"
+                        stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                    </svg>
+                </button>
+            </li>
+            <li>
+                <button (click)="scrollTo('projects')" aria-label="Projets" title="Projets">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="nav-icon" fill="none" viewBox="0 0 24 24"
+                        stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
+                    </svg>
+                </button>
+            </li>
+            <li>
+                <button (click)="scrollTo('contact')" aria-label="Contact" title="Contact">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="nav-icon" fill="none" viewBox="0 0 24 24"
+                        stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                    </svg>
+                </button>
+            </li>
         </ul>
     </div>
 </nav>
