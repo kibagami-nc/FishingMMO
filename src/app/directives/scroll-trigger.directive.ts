@@ -12,8 +12,8 @@ export class ScrollTriggerDirective implements AfterViewInit, OnDestroy {
     ngAfterViewInit() {
         const options = {
             root: null,
-            rootMargin: '0px',
-            threshold: 0.2
+            rootMargin: '10% 0px 10% 0px', // Ajoute une marge pour éviter les disparitions brusques en haut/bas
+            threshold: 0.1
         };
 
         this.observer = new IntersectionObserver((entries) => {

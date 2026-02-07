@@ -5,29 +5,41 @@
 @layer base {
   html {
     scroll-behavior: smooth;
+    overflow-x: hidden;
   }
 
   body {
-    @apply min-h-screen text-white bg-slate-950;
+    @apply min-h-screen text-slate-100;
     margin: 0;
     padding: 0;
     position: relative;
-    background: #0f172a;
-    /* Solid base color */
+    background: #020617;
+    /* Slate 950 base */
+    overflow-x: hidden;
+    user-select: none;
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
   }
 }
+
 
 /* Global Scroll Animation */
 .scroll-trigger {
   opacity: 0;
-  transform: translateY(40px);
-  /* Reduced from 60px for subtler movement */
-  transition: opacity 0.5s cubic-bezier(0.2, 0.8, 0.2, 1), transform 0.1s cubic-bezier(0.2, 0.8, 0.2, 1);
-  /* Smoother, less "snappy" easing */
+  transform: translateY(30px);
+  transition: opacity 0.6s cubic-bezier(0.2, 0.8, 0.2, 1), transform 0.6s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.scroll-trigger.from-right {
+  transform: translateX(100px);
+}
+
+.scroll-trigger.from-left {
+  transform: translateX(-100px);
 }
 
 .scroll-trigger.visible {
   opacity: 1;
-  transform: translateY(0);
-  transition: opacity 4s cubic-bezier(0.2, 0.8, 0.2, 1), transform 3s cubic-bezier(0.2, 0.8, 0.2, 1);
+  transform: translate(0, 0);
 }

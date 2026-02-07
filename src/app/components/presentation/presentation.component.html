@@ -1,6 +1,14 @@
 <section id="presentation"
-    class="min-h-screen w-full p-12 md:p-24 flex flex-col items-center justify-center bg-transparent">
-    <div class="max-w-5xl w-full">
+    class="min-h-screen w-full pt-12 pb-2 md:pt-24 md:pb-4 flex flex-col items-center justify-center bg-transparent relative overflow-hidden">
+
+    <!-- Nyan Cat Animation -->
+    <div class="nyan-container pointer-events-none absolute top-10 left-0 w-full z-20">
+        <div class="nyan-mover pointer-events-auto">
+            <img src="assets/gif/poptart-cat.gif" alt="Nyan Cat" class="w-full h-auto">
+        </div>
+    </div>
+
+    <div class="max-w-5xl w-full relative z-30">
 
         <h2 class="section-title scroll-trigger" appScrollTrigger>
             Hello, hello ...

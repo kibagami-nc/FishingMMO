@@ -1,0 +1,136 @@
+:host {
+    display: block;
+    position: relative;
+    overflow: hidden;
+    background: linear-gradient(to bottom, #1e3a8a 0%, #0c4a6e 100%);
+}
+
+
+
+.section-title {
+    @apply text-5xl md:text-6xl font-display font-bold mb-4 text-center;
+    background: linear-gradient(135deg, #ffffff 0%, #94a3b8 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    letter-spacing: -0.02em;
+}
+
+.section-subtitle {
+    @apply text-slate-400 text-center text-lg max-w-2xl mx-auto mb-16;
+}
+
+/* Card Grid */
+.cert-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 1px;
+    background: rgba(255, 255, 255, 0.1);
+    /* Border color between cells */
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    position: relative;
+    /* Context for overlay */
+}
+
+@media (min-width: 768px) {
+    .cert-grid {
+        grid-template-columns: repeat(3, 1fr);
+    }
+}
+
+@media (min-width: 1024px) {
+    .cert-grid {
+        grid-template-columns: repeat(3, 1fr);
+    }
+}
+
+/* Interactive Overlay */
+.cert-overlay {
+    position: absolute;
+    background: rgba(0, 0, 0, 0.45);
+    /* Dark semi-transparent background */
+    backdrop-filter: blur(4px);
+    transition: all 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+    pointer-events: none;
+    /* Pass clicks through */
+    z-index: 20;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1.5rem;
+}
+
+.overlay-content {
+    opacity: 0;
+    transform: translateY(10px);
+    transition: all 0.2s ease 0.1s;
+    text-align: center;
+}
+
+.cert-grid:hover .cert-overlay {
+    /* Ensure opacity logic is handled by TS, but this helps stability */
+}
+
+.cert-overlay[style*="opacity: 1"] .overlay-content {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+/* Premium Card Design */
+.cert-card {
+    @apply relative transition-all duration-300 h-48;
+    /* Fixed height for uniformity */
+    background: rgba(15, 23, 42, 0.8);
+}
+
+.cert-card-inner {
+    @apply h-full p-4 flex flex-col items-center justify-center relative overflow-hidden transition-all duration-300;
+}
+
+/* Animated Border Gradient */
+.cert-card::before {
+    display: none;
+    /* Removed for glued look, relying on gap */
+}
+
+.cert-card:hover::before {
+    display: none;
+}
+
+/* Content Styling */
+.cert-icon {
+    @apply w-10 h-10 rounded-lg bg-white/5 flex items-center justify-center p-2 mb-3 border border-white/10 transition-all duration-300;
+}
+
+.cert-icon img {
+    @apply w-full h-full object-contain;
+}
+
+.cert-content {
+    @apply flex flex-col items-center w-full text-center;
+}
+
+.cert-title {
+    @apply text-xs font-bold text-white mb-1 px-1 line-clamp-2 leading-tight transition-colors duration-300;
+}
+
+.cert-issuer {
+    @apply text-[10px] text-slate-400 font-medium mb-1;
+}
+
+.cert-date {
+    display: none;
+    /* Hide date to save space */
+}
+
+/* Skills Tags */
+.skills-container {
+    display: none;
+    /* Hide skills to preserve grid look */
+}
+
+/* Skills Tags */
+.skills-container {
+    display: none;
+    /* Hide skills to preserve grid look */
+}

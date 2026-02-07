@@ -1,6 +1,6 @@
 :host {
     display: block;
-    background: linear-gradient(to bottom, #1e1b4b 0%, #2e1065 100%);
+    background: linear-gradient(to bottom, #4a044e 0%, #312e81 100%);
 }
 
 .category-badge {
@@ -161,4 +161,34 @@
     -webkit-background-clip: text;
     background-clip: text;
     color: transparent;
+}
+
+/* Nyan Cat Animation Styles */
+.nyan-container {
+    height: 250px;
+}
+
+.nyan-mover {
+    width: 350px;
+    position: absolute;
+    /* top: 50%; removed to rely on container positioning */
+    /* transform: translateY(-50%); */
+    animation: nyanRun 8s linear infinite;
+}
+
+.nyan-mover img {
+    mix-blend-mode: lighten;
+    display: block;
+    width: 100%;
+    height: auto;
+}
+
+@keyframes nyanRun {
+    0% {
+        left: -350px;
+    }
+
+    100% {
+        left: 100%;
+    }
 }

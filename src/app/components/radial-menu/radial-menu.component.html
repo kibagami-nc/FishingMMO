@@ -1,0 +1,33 @@
+<div class="menu-overlay" [class.active]="isOpen">
+    <!-- Mouse Follow Text -->
+    <div class="mouse-follow-text" [class.hidden]="isOpen" [style.left.px]="mousePosition.x + 15"
+        [style.top.px]="mousePosition.y + 45">
+        Clique droit pour ouvrir le menu
+    </div>
+
+    <div class="menu-wrapper" [style.left.px]="position.x" [style.top.px]="position.y" [class.open]="isOpen">
+
+        <!-- Glass Wheel Background -->
+        <div class="menu-wheel"></div>
+
+        <!-- Menu Items -->
+        <div class="menu-items">
+            <div *ngFor="let item of menuItems; let i = index" class="menu-item" [style.--angle]="item.angle + 'deg'"
+                [style.--color]="item.color" (click)="navigateTo(item.id)">
+
+                <div class="item-content">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="item-icon" fill="none" viewBox="0 0 24 24"
+                        stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" [attr.d]="item.icon" />
+                    </svg>
+                    <span class="item-label">{{ item.label }}</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Center Indicator -->
+        <div class="menu-center">
+            <div class="center-dot"></div>
+        </div>
+    </div>
+</div>
