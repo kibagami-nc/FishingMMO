@@ -6,6 +6,8 @@
   html {
     scroll-behavior: smooth;
     overflow-x: hidden;
+    overflow-y: auto;
+    height: 100%;
   }
 
   body {
@@ -16,6 +18,7 @@
     background: #020617;
     /* Slate 950 base */
     overflow-x: hidden;
+    overflow-y: hidden;
     user-select: none;
     -webkit-user-select: none;
     -moz-user-select: none;

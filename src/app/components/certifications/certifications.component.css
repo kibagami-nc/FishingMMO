@@ -67,9 +67,7 @@
     text-align: center;
 }
 
-.cert-grid:hover .cert-overlay {
-    /* Ensure opacity logic is handled by TS, but this helps stability */
-}
+/* .cert-overlay[style*="opacity: 1"] handles visible state content */
 
 .cert-overlay[style*="opacity: 1"] .overlay-content {
     opacity: 1;
@@ -121,12 +119,6 @@
 .cert-date {
     display: none;
     /* Hide date to save space */
-}
-
-/* Skills Tags */
-.skills-container {
-    display: none;
-    /* Hide skills to preserve grid look */
 }
 
 /* Skills Tags */

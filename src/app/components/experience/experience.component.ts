@@ -1,4 +1,4 @@
-import { Component } from '@angular/core';
+import { Component, HostListener } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ScrollTriggerDirective } from '../../directives/scroll-trigger.directive';
 
@@ -61,4 +61,11 @@ export class ExperienceComponent {
             tags: ['HTML/CSS', 'Angular', 'Java Spring Boot', 'TypeScript']
         }
     ];
+
+    scrollOffset = 0;
+
+    @HostListener('window:scroll', [])
+    onWindowScroll() {
+        this.scrollOffset = window.scrollY;
+    }
 }
