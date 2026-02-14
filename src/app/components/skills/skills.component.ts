@@ -36,17 +36,29 @@ export class SkillsComponent {
 
   tooltipText: string = '';
   tooltipVisible: boolean = false;
+  isClosing: boolean = false;
   mouseX: number = 0;
   mouseY: number = 0;
+  private closeTimeout: any;
 
-  showTooltip(text: string, event: MouseEvent) {
-    this.tooltipText = text;
+  showTooltip(text: string, event: MouseEvent, skillName?: string) {
+    // Clear any pending close timeout
+    if (this.closeTimeout) {
+      clearTimeout(this.closeTimeout);
+      this.closeTimeout = null;
+    }
+    this.isClosing = false;
+    this.tooltipText = skillName ? `${skillName}: ${text}` : text;
     this.tooltipVisible = true;
-    this.updateMousePosition(event);
   }
 
   hideTooltip() {
-    this.tooltipVisible = false;
+    this.isClosing = true;
+    this.closeTimeout = setTimeout(() => {
+      this.tooltipVisible = false;
+      this.isClosing = false;
+      this.closeTimeout = null;
+    }, 300); // Match animation duration
   }
 
   @HostListener('mousemove', ['$event'])

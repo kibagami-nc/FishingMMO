@@ -1,11 +1,12 @@
 import { Component } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { ScrollTriggerDirective } from '../../directives/scroll-trigger.directive';
 
 @Component({
     selector: 'app-contact',
     standalone: true,
-    imports: [CommonModule, FormsModule],
+    imports: [CommonModule, FormsModule, ScrollTriggerDirective],
     templateUrl: './contact.component.html',
     styleUrl: './contact.component.css'
 })

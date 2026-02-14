@@ -1,24 +1,52 @@
 <section class="h-screen w-full relative flex items-center justify-center overflow-hidden">
+    <!-- Tic-Tac-Toe Game (Top Right) -->
+    <div class="hero-game-overlay">
+        <app-tic-tac-toe></app-tic-tac-toe>
+    </div>
+
     <!-- KIBA Text - Top Left (Moves left on scroll) -->
     <div class="kiba-container" [style.transform]="'translateX(' + (-scrollOffset * 1) + 'px)'">
-        <h1 class="kibagami-text">KIBA</h1>
+        <div class="video-masked-wrapper kiba-wrapper">
+            <svg viewBox="0 0 500 250" preserveAspectRatio="xMidYMid meet" class="text-svg">
+                <defs>
+                    <mask id="kiba-mask-revised">
+                        <rect width="100%" height="100%" fill="black" />
+                        <text x="50%" y="55%" text-anchor="middle" dominant-baseline="middle"
+                            font-family="Outfit, sans-serif" font-weight="900" font-size="180" fill="white">KIBA</text>
+                    </mask>
+                </defs>
+                <image x="0" y="0" width="100%" height="100%" preserveAspectRatio="xMidYMid slice"
+                    xlink:href="assets/images/sakura.png" mask="url(#kiba-mask-revised)" />
+            </svg>
+        </div>
     </div>
 
     <!-- GAMI Text - Bottom Right (Moves right on scroll) -->
     <div class="gami-container" [style.transform]="'translateX(' + (scrollOffset * 1) + 'px)'">
-        <h1 class="kibagami-text">GAMI</h1>
+        <div class="video-masked-wrapper gami-wrapper">
+            <svg viewBox="0 0 500 250" preserveAspectRatio="xMidYMid meet" class="text-svg">
+                <defs>
+                    <mask id="gami-mask-revised">
+                        <rect width="100%" height="100%" fill="black" />
+                        <text x="50%" y="55%" text-anchor="middle" dominant-baseline="middle"
+                            font-family="Outfit, sans-serif" font-weight="900" font-size="180" fill="white">GAMI</text>
+                    </mask>
+                </defs>
+                <image x="0" y="0" width="100%" height="100%" preserveAspectRatio="xMidYMid slice"
+                    xlink:href="assets/images/sakura.png" mask="url(#gami-mask-revised)" />
+            </svg>
+        </div>
     </div>
 
     <!-- Hero Content Group -->
-    <div class="hero-content-wrapper" [style.opacity]="1 - (scrollOffset / 800)">
+    <div class="hero-content-wrapper">
         <!-- Central Image -->
-        <div class="hero-image-container"
-            [style.transform]="'translateY(' + (scrollOffset * -0.4) + 'px) translateX(' + (scrollOffset * 1) + 'px)'">
+        <div class="hero-image-container">
             <img src="assets/images/image.png" alt="Hero Image" class="hero-image">
         </div>
 
         <!-- Personal Info -->
-        <div class="hero-info" [style.transform]="'translateX(' + (scrollOffset * -0.5) + 'px)'">
+        <div class="hero-info">
             <h2 class="name">Manley BOUILLE</h2>
             <p class="title">Etudiant en BTS SIO option SLAM</p>
         </div>
@@ -33,5 +61,17 @@
                 </path>
             </svg>
         </div>
+    </div>
+
+    <!-- Mes Apps Trigger (Middle Left) -->
+    <div class="apps-trigger-container">
+        <button class="trigger-btn group" (click)="openApps.emit()" aria-label="Ouvrir mes applications">
+            <svg class="w-8 h-8 transition-transform group-hover:-translate-x-2" fill="none" stroke="currentColor"
+                viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 16l-4-4m0 0l4-4m-4 4h14">
+                </path>
+            </svg>
+            <span class="trigger-text">Mes applications</span>
+        </button>
     </div>
 </section>

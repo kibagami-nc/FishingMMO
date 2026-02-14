@@ -20,6 +20,12 @@ export class RadialMenuComponent {
     isOpen = false;
     position = { x: 0, y: 0 };
     mousePosition = { x: 0, y: 0 };
+    private holdTimer: any;
+    private progressInterval: any;
+    private animationFrameId: number | null = null;
+    isHolding = false;
+    holdProgress = 0;
+    private readonly HOLD_DURATION = 500;
 
     menuItems: MenuItem[] = [
         { id: 'hero', label: 'Accueil', icon: 'M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6', angle: 0, color: '#9AC8EB' },
@@ -36,11 +42,51 @@ export class RadialMenuComponent {
         this.mousePosition = { x: event.clientX, y: event.clientY };
     }
 
+    @HostListener('window:mousedown', ['$event'])
+    onMouseDown(event: MouseEvent) {
+        if (event.button === 2 && !this.isOpen) {
+            this.isHolding = true;
+            this.holdProgress = 0;
+            const startTime = performance.now();
+
+            const update = (currentTime: number) => {
+                if (!this.isHolding) return;
+
+                const elapsed = currentTime - startTime;
+                this.holdProgress = Math.min((elapsed / this.HOLD_DURATION) * 100, 100);
+
+                if (elapsed >= this.HOLD_DURATION) {
+                    this.position = { x: event.clientX, y: event.clientY };
+                    this.isOpen = true;
+                    this.stopHolding();
+                } else {
+                    this.animationFrameId = requestAnimationFrame(update);
+                }
+            };
+
+            this.animationFrameId = requestAnimationFrame(update);
+        }
+    }
+
+    @HostListener('window:mouseup', ['$event'])
+    onMouseUp(event: MouseEvent) {
+        if (event.button === 2) {
+            this.stopHolding();
+        }
+    }
+
+    private stopHolding() {
+        this.isHolding = false;
+        this.holdProgress = 0;
+        if (this.animationFrameId !== null) {
+            cancelAnimationFrame(this.animationFrameId);
+            this.animationFrameId = null;
+        }
+    }
+
     @HostListener('window:contextmenu', ['$event'])
     onContextMenu(event: MouseEvent) {
         event.preventDefault();
-        this.position = { x: event.clientX, y: event.clientY };
-        this.isOpen = true;
     }
 
     @HostListener('window:click', ['$event'])

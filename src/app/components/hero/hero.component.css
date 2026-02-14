@@ -1,118 +1,94 @@
 :host {
     display: block;
-    background: linear-gradient(to bottom, #4c0519 0%, #4a044e 100%);
+    background: linear-gradient(to bottom, #020617, #1e1b4b);
+}
+
+.kiba-container,
+.gami-container {
+    position: absolute;
+    z-index: 10;
+    will-change: transform;
 }
 
 .kiba-container {
-    position: absolute;
-    top: 10vh;
-    left: 10vw;
-    z-index: 10;
-    will-change: transform;
+    top: 5vh;
+    left: 2vw;
 }
 
 .gami-container {
+    bottom: 5vh;
+    right: 2vw;
+}
+
+.video-masked-wrapper {
+    width: 95vw;
+    /* Increased from 65vw */
+    height: 40vh;
+    /* Increased from 35vh */
+    max-width: 1400px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.text-svg {
+    width: 100%;
+    height: 100%;
+}
+
+.text-video {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    pointer-events: none;
+}
+
+/* Hero Content Group (Image & Info) */
+.hero-content-wrapper {
     position: absolute;
-    bottom: 10vh;
-    right: 10vw;
-    z-index: 10;
-    will-change: transform;
-}
-
-.kibagami-text {
-    font-family: 'Outfit', sans-serif;
-    font-size: 22vw;
-    font-weight: 900;
-    line-height: 1;
-    letter-spacing: -0.02em;
-    margin: 0;
-    -webkit-mask-image: linear-gradient(to right, rgba(0, 0, 0, 0.4), black);
-    mask-image: linear-gradient(to right, rgba(0, 0, 0, 0.4), black);
-}
-
-.kiba-container .kibagami-text {
-    background: linear-gradient(135deg, #a5b4fc 0%, #818cf8 50%, #6366f1 100%);
-    background-clip: text;
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-}
-
-.gami-container .kibagami-text {
-    color: #7c3aed;
-}
-
-@media (max-width: 768px) {
-    .kiba-container {
-        top: 5vh;
-        left: 5vw;
-    }
-
-    .gami-container {
-        bottom: 5vh;
-        right: 5vw;
-    }
-
-    .kibagami-text {
-        font-size: 25vw;
-    }
-
-    .hero-image-container {
-        top: 25vh;
-        right: 15vw;
-        width: 30vw;
-        height: 30vw;
-    }
-
-    .hero-info {
-        bottom: 20vh;
-        left: 5vw;
-    }
-
-    .hero-info .name {
-        font-size: 2rem;
-    }
-
-    .hero-info .title {
-        font-size: 1rem;
-    }
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    z-index: 15;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 
 .hero-image-container {
-    position: absolute;
-    top: 17vh;
-    right: 17vw;
-    width: 15vw;
-    height: 15vw;
+    position: relative;
+    width: 20vw;
+    height: 20vw;
     max-width: 250px;
     max-height: 250px;
-    z-index: 5;
-    pointer-events: none;
-    will-change: transform;
-    filter: drop-shadow(0 20px 50px rgba(0, 0, 0, 0.3));
+    z-index: 20;
+    filter: drop-shadow(0 20px 50px rgba(0, 0, 0, 0.4));
     border-radius: 50%;
     overflow: hidden;
     border: 4px solid rgba(255, 255, 255, 0.1);
+    margin: 0 5vw;
+    /* Breathing room between image and text */
 }
 
 .hero-image {
     width: 100%;
     height: 100%;
     object-fit: cover;
-    opacity: 0.9;
-    border-radius: 50%;
 }
 
 .hero-info {
-    position: absolute;
-    bottom: 25vh;
-    left: 10vw;
-    z-index: 15;
+    position: relative;
+    z-index: 25;
     color: white;
     font-family: 'Outfit', sans-serif;
+    text-align: left;
+    max-width: 400px;
 }
 
 .hero-info .name {
-    font-size: 3rem;
+    font-size: clamp(2rem, 4vw, 3.5rem);
     font-weight: 800;
     margin: 0;
     line-height: 1.1;
@@ -123,73 +99,164 @@
 }
 
 .hero-info .title {
-    font-size: 1.25rem;
+    font-size: clamp(0.875rem, 1.5vw, 1.25rem);
     font-weight: 400;
     margin: 0.5rem 0 0 0;
     opacity: 0.8;
 }
 
-.hero-content-wrapper {
+/* Game Overlay (Top Right) */
+.hero-game-overlay {
     position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    pointer-events: none;
-    z-index: 15;
+    top: 6rem;
+    right: 12rem;
+    z-index: 100;
+    pointer-events: auto;
 }
 
-@media (max-width: 480px) {
-    .hero-content-wrapper {
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
-        gap: 2rem;
-        padding-top: 5vh;
-        /* Adjust for KIBA text */
+/* Responsive adjustments */
+@media (max-width: 1024px) {
+    .hero-game-overlay {
+        display: none;
     }
 
-    .hero-image-container,
-    .hero-image-container.hero-image-container,
-    /* High specificity to override inline style if needed, though transform is hard to override */
-    .hero-info,
-    .hero-info.hero-info {
-        position: relative !important;
-        top: auto !important;
-        right: auto !important;
-        bottom: auto !important;
-        left: auto !important;
-        margin: 0 !important;
-        transform: none !important;
-        /* Force centering by disabling individual scroll transforms on tiny screens */
+    .video-masked-wrapper {
+        width: 85vw;
+    }
+}
+
+@media (max-width: 768px) {
+    .hero-content-wrapper {
+        flex-direction: column;
+        gap: 2rem;
+        padding-top: 60px;
+        /* Space for mobile nav */
+    }
+
+    .kiba-container {
+        top: calc(5vh + 60px);
+    }
+
+    .gami-container {
+        bottom: 8vh;
+    }
+
+    .video-masked-wrapper {
+        width: 95vw;
+        height: 25vh;
+        /* Slightly taller for better visibility */
     }
 
     .hero-image-container {
-        width: 50vw;
-        height: 50vw;
-        max-width: 200px;
-        max-height: 200px;
+        width: 45vw;
+        height: 45vw;
+        margin: 0;
     }
 
     .hero-info {
         text-align: center;
     }
+}
+
+@media (max-width: 480px) {
+    .gami-container {
+        bottom: 5.5vh;
+        /* Lowered from 8vh */
+    }
+
+    .video-masked-wrapper {
+        width: 98vw;
+        height: 22vh;
+        /* Match 768px height */
+    }
+
+    .hero-image-container {
+        width: 55vw;
+        height: 55vw;
+    }
 
     .hero-info .name {
-        font-size: 2.2rem;
+        font-size: 1.8rem;
+    }
+}
+
+/* Scroll Hint */
+.hero-scroll-hint {
+    position: absolute;
+    bottom: 2rem;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 100;
+}
+
+/* Mes Apps Trigger */
+.apps-trigger-container {
+    position: absolute;
+    top: 90%;
+    left: 2rem;
+    transform: translateY(-50%);
+    z-index: 150;
+    pointer-events: auto;
+}
+
+.trigger-btn {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.75rem 1.5rem;
+    background: rgba(255, 255, 255, 0.05);
+    backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 9999px;
+    color: white;
+    cursor: pointer;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.trigger-btn:hover {
+    background: rgba(255, 255, 255, 0.1);
+    border-color: rgba(255, 255, 255, 0.3);
+    transform: translateY(-2px);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+}
+
+.trigger-text {
+    font-family: 'Outfit', sans-serif;
+    font-weight: 600;
+    font-size: 0.875rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    opacity: 0.8;
+}
+
+@media (max-width: 1540px) {
+    .apps-trigger-container {
+        left: 1rem;
+    }
+}
+
+@media (max-width: 768px) {
+    .apps-trigger-container {
+        top: auto;
+        bottom: 1.5rem;
+        left: 50%;
+        transform: translateX(-50%);
+        width: fit-content;
     }
 
-    .hero-info .title {
-        font-size: 1.1rem;
+    .trigger-btn {
+        flex-direction: row;
+        padding: 0.75rem 1.5rem;
     }
 
-    .kibagami-text {
-        font-size: 32vw;
-        /* Make background text larger but contained */
+    .trigger-text {
+        writing-mode: horizontal-tb;
+        transform: rotate(0deg);
+        font-size: 0.875rem;
     }
 
     .hero-scroll-hint {
-        bottom: 1.5rem !important;
+        display: none;
+        /* Hide scroll hint on mobile to favor the apps button */
     }
 }

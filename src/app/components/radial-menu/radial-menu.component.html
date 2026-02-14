@@ -1,19 +1,28 @@
-<div class="menu-overlay" [class.active]="isOpen">
-    <!-- Mouse Follow Text -->
-    <div class="mouse-follow-text" [class.hidden]="isOpen" [style.left.px]="mousePosition.x + 15"
-        [style.top.px]="mousePosition.y + 45">
-        Clique droit pour ouvrir le menu
+<div class="menu-overlay" [class.active]="isOpen || isHolding">
+    <!-- Circular Loading Bar -->
+    <div class="radial-loader" [class.visible]="isHolding" [style.left.px]="mousePosition.x"
+        [style.top.px]="mousePosition.y">
+        <svg viewBox="0 0 100 100">
+            <circle class="loader-bg" cx="50" cy="50" r="30"></circle>
+            <circle class="loader-progress" cx="50" cy="50" r="30"
+                [style.stroke-dashoffset]="188.5 - (188.5 * holdProgress / 100)"></circle>
+        </svg>
     </div>
 
-    <div class="menu-wrapper" [style.left.px]="position.x" [style.top.px]="position.y" [class.open]="isOpen">
+    <!-- Mouse Follow Text -->
+    <div class="mouse-follow-text" [class.hidden]="isOpen || isHolding" [style.left.px]="mousePosition.x + 15"
+        [style.top.px]="mousePosition.y + 45">
+        Maintenir clique droit pour ouvrir le menu
+    </div>
 
-        <!-- Glass Wheel Background -->
-        <div class="menu-wheel"></div>
+    <div class="menu-wrapper" [style.left.px]="position.x" [style.top.px]="position.y"
+        [class.active]="isOpen || isHolding" [class.open]="isOpen">
 
         <!-- Menu Items -->
         <div class="menu-items">
             <div *ngFor="let item of menuItems; let i = index" class="menu-item" [style.--angle]="item.angle + 'deg'"
-                [style.--color]="item.color" (click)="navigateTo(item.id)">
+                [style.--color]="item.color" [style.--i]="i" [style.--progress]="holdProgress / 100"
+                (click)="navigateTo(item.id)">
 
                 <div class="item-content">
                     <svg xmlns="http://www.w3.org/2000/svg" class="item-icon" fill="none" viewBox="0 0 24 24"
@@ -25,9 +34,6 @@
             </div>
         </div>
 
-        <!-- Center Indicator -->
-        <div class="menu-center">
-            <div class="center-dot"></div>
-        </div>
+
     </div>
 </div>

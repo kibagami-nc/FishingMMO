@@ -1,4 +1,4 @@
-<section id="skills" class="pt-2 pb-20 relative overflow-hidden bg-transparent">
+<section id="skills" class="pt-2 pb-80 relative overflow-visible bg-transparent">
     <div class="skills-title-container" [style.transform]="'translateX(' + (-500 - scrollOffset * 0.6) + 'px)'">
         <h2 class="section-title">
             Compétences Compétences Compétences Compétences Compétences Compétences Compétences Compétences Compétences
@@ -6,35 +6,33 @@
         </h2>
     </div>
 
-    <div class="marquee-container" (mouseleave)="hideTooltip()">
-        <div class="marquee-content group">
-            <!-- First set of skills -->
-            <div class="flex gap-8 px-4">
-                <div *ngFor="let skill of skills" class="skill-item group/skill"
-                    (mouseenter)="showTooltip(skill.description, $event)">
-                    <img [src]="skill.icon" [alt]="skill.name"
-                        class="w-12 h-12 grayscale group-hover/skill:grayscale-0 group-hover/skill:scale-110 group-hover/skill:drop-shadow-[0_0_8px_rgba(255,255,255,0.5)] transition-all duration-300">
-                    <span
-                        class="text-gray-400 font-medium group-hover/skill:text-white transition-colors">{{skill.name}}</span>
-                </div>
-            </div>
-            <!-- Duplicated set for seamless loop -->
-            <div class="flex gap-8 px-4">
-                <div *ngFor="let skill of skills" class="skill-item group/skill"
-                    (mouseenter)="showTooltip(skill.description, $event)">
-                    <img [src]="skill.icon" [alt]="skill.name"
-                        class="w-12 h-12 grayscale group-hover/skill:grayscale-0 group-hover/skill:scale-110 group-hover/skill:drop-shadow-[0_0_8px_rgba(255,255,255,0.5)] transition-all duration-300">
-                    <span
-                        class="text-gray-400 font-medium group-hover/skill:text-white transition-colors">{{skill.name}}</span>
-                </div>
+    <!-- Left Rotating Wheel (Clockwise) -->
+    <div class="skill-wheel skill-wheel-left">
+        <div class="wheel-orbit orbit-clockwise">
+            <div *ngFor="let skill of skills.slice(0, 6); let i = index" class="wheel-item"
+                [style.transform]="'rotate(' + (i * 60) + 'deg) translateY(-200px)'"
+                (mouseenter)="showTooltip(skill.description, $event, skill.name)" (mouseleave)="hideTooltip()">
+                <img [src]="skill.icon" [alt]="skill.name" class="wheel-icon">
             </div>
         </div>
     </div>
 
-    <!-- Tooltip -->
-    <div *ngIf="tooltipVisible"
-        class="fixed pointer-events-none z-[100] px-4 py-2 bg-white/10 backdrop-blur-md border border-white/20 rounded-xl text-sm text-white shadow-2xl max-w-xs text-balance leading-relaxed"
-        [style.left.px]="mouseX + 20" [style.top.px]="mouseY - 80">
-        {{ tooltipText }}
+    <!-- Right Rotating Wheel (Counter-Clockwise) -->
+    <div class="skill-wheel skill-wheel-right">
+        <div class="wheel-orbit orbit-counter-clockwise">
+            <div *ngFor="let skill of skills.slice(6); let i = index" class="wheel-item"
+                [style.transform]="'rotate(' + (i * 90) + 'deg) translateY(-200px)'"
+                (mouseenter)="showTooltip(skill.description, $event, skill.name)" (mouseleave)="hideTooltip()">
+                <img [src]="skill.icon" [alt]="skill.name" class="wheel-icon">
+            </div>
+        </div>
+    </div>
+
+    <!-- Centered Description Box -->
+    <div *ngIf="tooltipVisible" class="skill-description-box" [class.closing]="isClosing">
+        <div class="description-content">
+            <h3 class="skill-name">{{ tooltipText.split(':')[0] }}</h3>
+            <p class="skill-detail">{{ tooltipText.split(':')[1] || tooltipText }}</p>
+        </div>
     </div>
 </section>

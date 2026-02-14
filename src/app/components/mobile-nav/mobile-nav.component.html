@@ -1,0 +1,20 @@
+<nav class="mobile-navbar">
+    <div class="navbar-header">
+        <button class="hamburger-btn" (click)="toggleMenu()" [class.active]="isMenuOpen">
+            <span class="bar"></span>
+            <span class="bar"></span>
+            <span class="bar"></span>
+        </button>
+    </div>
+
+    <div class="nav-dropdown" [class.open]="isMenuOpen">
+        <div class="nav-items">
+            <button *ngFor="let item of menuItems" class="nav-item" (click)="navigateTo(item.id)">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path [attr.d]="item.icon" stroke-linecap="round" stroke-linejoin="round"></path>
+                </svg>
+                <span>{{ item.label }}</span>
+            </button>
+        </div>
+    </div>
+</nav>

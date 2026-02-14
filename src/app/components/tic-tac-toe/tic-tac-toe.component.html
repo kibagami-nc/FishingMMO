@@ -1,0 +1,22 @@
+<div class="ttt-container">
+    <h2 class="ttt-main-title">Tic Tac Toe (Tic ?)</h2>
+    <div class="ttt-header">
+        <span class="status" [class.winner]="winner">
+            {{ winner ? 'GAGNANT: ' + winner : (isDraw ? 'MATCH NUL' : (isPlayerTurn ? 'À TOI' : 'SYSTÈME...')) }}
+        </span>
+        <button class="reset-btn" (click)="resetGame()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M21 12a9 9 0 11-9-9c2.52 0 4.85.83 6.72 2.24L21 8M21 3v5h-5" />
+            </svg>
+        </button>
+    </div>
+
+    <div class="ttt-grid">
+        <div *ngFor="let cell of board; let i = index" class="ttt-cell" [class.occupied]="cell" (click)="makeMove(i)">
+            <span class="mark" [class.x]="cell === 'X'" [class.o]="cell === 'O'"
+                [class.expiring]="(cell === 'X' && i === playerMoves[0]) || (cell === 'O' && i === aiMoves[0])">
+                {{ cell }}
+            </span>
+        </div>
+    </div>
+</div>

@@ -10,6 +10,8 @@ import { ContactComponent } from './components/contact/contact.component';
 import { RadialMenuComponent } from './components/radial-menu/radial-menu.component';
 import { FooterComponent } from './components/footer/footer.component';
 import { VeilleTechnoComponent } from './components/veille-techno/veille-techno.component';
+import { MobileNavComponent } from './components/mobile-nav/mobile-nav.component';
+import { AppsOnlineComponent } from './components/apps-online/apps-online.component';
 
 @Component({
   selector: 'app-root',
@@ -17,17 +19,22 @@ import { VeilleTechnoComponent } from './components/veille-techno/veille-techno.
   imports: [
     CommonModule, HeroComponent, PresentationComponent, SkillsComponent,
     CertificationsComponent, ExperienceComponent, ProjectsComponent,
-    ContactComponent, RadialMenuComponent, FooterComponent, VeilleTechnoComponent
+    ContactComponent, RadialMenuComponent, FooterComponent, VeilleTechnoComponent,
+    MobileNavComponent, AppsOnlineComponent
   ],
   template: `
     <div class="app-perspective" 
-         [class.modal-open]="showVeilleModal && !isClosing" 
-         [class.perspective-active]="showVeilleModal || isClosing">
+         [class.apps-open]="showAppsModal && !isAppsClosing"
+         [class.veille-open]="showVeilleModal && !isClosing"
+         [class.perspective-active]="showVeilleModal || isClosing || showAppsModal || isAppsClosing">
       <main class="main-content">
+        <app-mobile-nav></app-mobile-nav>
         <app-radial-menu></app-radial-menu>
-        <app-hero id="hero"></app-hero>
+        <app-hero id="hero" (openApps)="showAppsModal = true"></app-hero>
         
-        <app-presentation id="presentation" (openVeille)="showVeilleModal = true"></app-presentation>
+        <app-presentation id="presentation" 
+            (openVeille)="showVeilleModal = true">
+        </app-presentation>
         <app-skills id="skills"></app-skills>
         <app-certifications id="certifications"></app-certifications>
         <app-experience id="experience"></app-experience>
@@ -37,13 +44,23 @@ import { VeilleTechnoComponent } from './components/veille-techno/veille-techno.
       </main>
     </div>
 
-    <!-- Veille Techno Modal -->
-    <div class="veille-modal-overlay" 
+    <!-- Veille Techno Modal (Right Side) -->
+    <div class="veille-modal-overlay right-side" 
          *ngIf="showVeilleModal" 
          [class.closing]="isClosing"
-         (click)="closeModal()">
+         (click)="closeModal('veille')">
       <div class="veille-modal-content" (click)="$event.stopPropagation()">
-          <app-veille-techno (close)="closeModal()"></app-veille-techno>
+          <app-veille-techno (close)="closeModal('veille')"></app-veille-techno>
+      </div>
+    </div>
+
+    <!-- Mes Apps Modal (Left Side) -->
+    <div class="veille-modal-overlay left-side" 
+         *ngIf="showAppsModal" 
+         [class.closing]="isAppsClosing"
+         (click)="closeModal('apps')">
+      <div class="veille-modal-content" (click)="$event.stopPropagation()">
+          <app-apps-online (close)="closeModal('apps')"></app-apps-online>
       </div>
     </div>
   `,
@@ -61,7 +78,6 @@ import { VeilleTechnoComponent } from './components/veille-techno/veille-techno.
       position: relative;
     }
 
-    /* Maintain perspective during both opening and closing transitions */
     .app-perspective.perspective-active {
       perspective: 2000px;
     }
@@ -69,28 +85,38 @@ import { VeilleTechnoComponent } from './components/veille-techno/veille-techno.
     .main-content {
       width: 100%;
       transition: transform 0.8s cubic-bezier(0.34, 1.56, 0.64, 1);
-      transform-origin: center left;
+      transform-origin: center;
       position: relative;
       z-index: 10;
     }
 
-    .modal-open .main-content {
+    /* Apps Open (Left Modal) -> Swapped Animation */
+    .apps-open .main-content {
+      transform: rotateY(-15deg) scale(0.9) translateX(-50px);
+      pointer-events: none;
+      user-select: none;
+    }
+
+    /* Veille Open (Right Modal) -> Swapped Animation */
+    .veille-open .main-content {
       transform: rotateY(15deg) scale(0.9) translateX(50px);
       pointer-events: none;
       user-select: none;
     }
 
-    /* Veille Techno Modal Transitions */
+    /* Modal Overlay Base */
     .veille-modal-overlay {
       position: fixed;
       inset: 0;
       background: rgba(0, 0, 0, 0.6);
       z-index: 10000;
       display: flex;
-      justify-content: flex-end;
-      animation: fadeIn 0.8s ease-out; /* Matched to main transition */
+      animation: fadeIn 0.8s ease-out;
       overflow: hidden;
     }
+
+    .veille-modal-overlay.right-side { justify-content: flex-end; }
+    .veille-modal-overlay.left-side { justify-content: flex-start; }
 
     .veille-modal-overlay.closing {
       animation: fadeOut 0.8s ease-in forwards;
@@ -101,13 +127,26 @@ import { VeilleTechnoComponent } from './components/veille-techno/veille-techno.
       max-width: 1000px;
       height: 100%;
       background: #020617;
-      box-shadow: -20px 0 50px rgba(0, 0, 0, 0.5);
-      animation: slideInFromRight 0.8s cubic-bezier(0.16, 1, 0.3, 1);
+      box-shadow: 0 0 50px rgba(0, 0, 0, 0.5);
       position: relative;
     }
 
-    .closing .veille-modal-content {
+    .right-side .veille-modal-content {
+      animation: slideInFromRight 0.8s cubic-bezier(0.16, 1, 0.3, 1);
+      box-shadow: -20px 0 50px rgba(0, 0, 0, 0.5);
+    }
+
+    .left-side .veille-modal-content {
+      animation: slideInFromLeft 0.8s cubic-bezier(0.16, 1, 0.3, 1);
+      box-shadow: 20px 0 50px rgba(0, 0, 0, 0.5);
+    }
+
+    .right-side.closing .veille-modal-content {
       animation: slideOutToRight 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    }
+
+    .left-side.closing .veille-modal-content {
+      animation: slideOutToLeft 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
     }
 
     @keyframes slideInFromRight {
@@ -118,6 +157,16 @@ import { VeilleTechnoComponent } from './components/veille-techno/veille-techno.
     @keyframes slideOutToRight {
       from { transform: translateX(0); }
       to { transform: translateX(100%); }
+    }
+
+    @keyframes slideInFromLeft {
+      from { transform: translateX(-100%); }
+      to { transform: translateX(0); }
+    }
+
+    @keyframes slideOutToLeft {
+      from { transform: translateX(0); }
+      to { transform: translateX(-100%); }
     }
 
     @keyframes fadeIn {
@@ -139,13 +188,24 @@ import { VeilleTechnoComponent } from './components/veille-techno/veille-techno.
 })
 export class AppComponent {
   _showVeilleModal = false;
+  _showAppsModal = false;
   isClosing = false;
+  isAppsClosing = false;
 
   get showVeilleModal() { return this._showVeilleModal; }
   set showVeilleModal(value: boolean) {
     this._showVeilleModal = value;
-    if (value) {
-      this.isClosing = false;
+    this.handleBodyScroll(value);
+  }
+
+  get showAppsModal() { return this._showAppsModal; }
+  set showAppsModal(value: boolean) {
+    this._showAppsModal = value;
+    this.handleBodyScroll(value);
+  }
+
+  private handleBodyScroll(isOpen: boolean) {
+    if (isOpen) {
       document.body.style.overflow = 'hidden';
       document.documentElement.style.overflow = 'hidden';
     } else {
@@ -154,11 +214,22 @@ export class AppComponent {
     }
   }
 
-  closeModal() {
-    this.isClosing = true;
-    setTimeout(() => {
-      this.showVeilleModal = false;
-      this.isClosing = false;
-    }, 800); // Wait for transition duration
+  closeModal(type: 'veille' | 'apps') {
+    if (type === 'veille') {
+      this.isClosing = true;
+      setTimeout(() => {
+        this.showVeilleModal = false;
+        this.isClosing = false;
+        this.handleBodyScroll(false);
+      }, 800);
+    } else {
+      this.isAppsClosing = true;
+      setTimeout(() => {
+        this.showAppsModal = false;
+        this.isAppsClosing = false;
+        this.handleBodyScroll(false);
+      }, 800);
+    }
   }
 }
+

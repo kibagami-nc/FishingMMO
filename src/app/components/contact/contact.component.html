@@ -1,124 +1,94 @@
-<section id="contact" class="w-full min-h-screen py-32 relative flex items-center justify-center overflow-hidden">
+<section id="contact" class="w-full min-h-screen py-32 relative flex items-center justify-center overflow-visible">
 
-    <!-- Background Organic Shapes -->
-    <div class="blob-container absolute inset-0 pointer-events-none overflow-hidden">
-        <div class="blob blob-1"></div>
-        <div class="blob blob-2"></div>
-        <div class="blob blob-3"></div>
-    </div>
 
-    <div class="max-w-6xl w-full px-4 relative z-10">
-        <div class="text-center mb-16">
-            <h2 class="section-title mb-4">Contact</h2>
-            <p class="section-subtitle">Une idée ? Un projet ? N'hésitez pas à me contacter !</p>
+    <div class="max-w-5xl w-full px-4 relative z-10">
+        <div class="text-center mb-12">
+            <h2 class="section-title mb-4 scroll-trigger" appScrollTrigger>Contact</h2>
+            <p class="section-subtitle scroll-trigger" appScrollTrigger style="transition-delay: 100ms;">Une question,
+                un projet ou simplement envie de discuter ?</p>
         </div>
 
-        <!-- Organic Glass Form -->
-        <div class="contact-card-wrapper">
-            <div class="contact-glass-card">
-                <div class="contact-grid">
-                    <!-- Info Panel -->
-                    <div class="info-panel p-8 md:p-12">
-                        <h3 class="info-title">Discutons de votre projet</h3>
-                        <p class="info-desc">Je suis toujours ouvert à de nouvelles opportunités et collaborations
-                            créatives.</p>
+        <div class="minimal-card scroll-trigger" appScrollTrigger style="transition-delay: 200ms;">
+            <div class="card-grid">
+                <!-- Info Section -->
+                <div class="contact-info">
+                    <h3 class="info-title">Mes Coordonnées</h3>
+                    <p class="info-text">N'hésitez pas à me joindre via le formulaire ou directement sur mes réseaux.
+                    </p>
 
-                        <div class="info-items">
-                            <div class="info-item">
-                                <div class="icon-circle">
-                                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24"
-                                        fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                                        stroke-linejoin="round">
-                                        <path
-                                            d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z">
-                                        </path>
-                                        <polyline points="22,6 12,13 2,6"></polyline>
-                                    </svg>
-                                </div>
-                                <div>
-                                    <p class="item-label">Email</p>
-                                    <a href="mailto:manley.bouille&#64;example.com"
-                                        class="item-value">manley.bouille&#64;gmail.com</a>
-                                </div>
-                            </div>
-
-                            <div class="info-item">
-                                <div class="icon-circle">
-                                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor"
-                                        viewBox="0 0 16 16">
-                                        <path
-                                            d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.012 8.012 0 0 0 16 8c0-4.42-3.58-8-8-8z" />
-                                    </svg>
-                                </div>
-                                <div>
-                                    <p class="item-label">GitHub</p>
-                                    <a href="https://github.com/manley-b" target="_blank"
-                                        class="item-value">github.com/manley-b</a>
-                                </div>
-                            </div>
-
-                            <div class="info-item">
-                                <div class="icon-circle">
-                                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24"
-                                        fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                                        stroke-linejoin="round">
-                                        <path
-                                            d="M16 8a6 6 0 0 1 6 6v7h-4v-7a2 2 0 0 0-2-2 2 2 0 0 0-2 2v7h-4v-7a6 6 0 0 1 6-6z">
-                                        </path>
-                                        <rect x="2" y="9" width="4" height="12"></rect>
-                                        <circle cx="4" cy="4" r="2"></circle>
-                                    </svg>
-                                </div>
-                                <div>
-                                    <p class="item-label">LinkedIn</p>
-                                    <a href="https://linkedin.com/in/manley-bouille" target="_blank"
-                                        class="item-value">Manley BOUILLE</a>
-                                </div>
-                            </div>
-                        </div>
+                    <div class="info-links">
+                        <a href="mailto:manley-bouille@outlook.fr" class="minimal-link">
+                            <span class="link-icon">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24"
+                                    fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                                    stroke-linejoin="round">
+                                    <path
+                                        d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z">
+                                    </path>
+                                    <polyline points="22,6 12,13 2,6"></polyline>
+                                </svg>
+                            </span>
+                            <span class="link-label">manley-bouille&#64;outlook.fr</span>
+                        </a>
+                        <a href="https://github.com/kibagami-nc" target="_blank" class="minimal-link">
+                            <span class="link-icon">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor"
+                                    viewBox="0 0 16 16">
+                                    <path
+                                        d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.012 8.012 0 0 0 16 8c0-4.42-3.58-8-8-8z" />
+                                </svg>
+                            </span>
+                            <span class="link-label">kibagami-nc</span>
+                        </a>
+                        <a href="https://www.linkedin.com/in/manley-bouille/" target="_blank" class="minimal-link">
+                            <span class="link-icon">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24"
+                                    fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                                    stroke-linejoin="round">
+                                    <path
+                                        d="M16 8a6 6 0 0 1 6 6v7h-4v-7a2 2 0 0 0-2-2 2 2 0 0 0-2 2v7h-4v-7a6 6 0 0 1 6-6z">
+                                    </path>
+                                    <rect x="2" y="9" width="4" height="12"></rect>
+                                    <circle cx="4" cy="4" r="2"></circle>
+                                </svg>
+                            </span>
+                            <span class="link-label">manley-bouille</span>
+                        </a>
                     </div>
+                </div>
 
-                    <!-- Form Panel -->
-                    <div class="form-panel p-8 md:p-12">
-                        <form *ngIf="!submitted" #contactForm="ngForm" (ngSubmit)="onSubmit()"
-                            class="flex flex-col gap-8">
-
-                            <div class="input-group">
-                                <input type="text" id="name" name="name" [(ngModel)]="contactData.name" required
-                                    placeholder=" " class="peer">
-                                <label for="name">Nom Complet</label>
-                                <div class="input-accent"></div>
-                            </div>
-
-                            <div class="input-group">
-                                <input type="email" id="email" name="email" [(ngModel)]="contactData.email" required
-                                    email placeholder=" " class="peer">
-                                <label for="email">E-mail</label>
-                                <div class="input-accent"></div>
-                            </div>
-
-                            <div class="input-group">
-                                <textarea id="message" name="message" [(ngModel)]="contactData.message" required
-                                    rows="4" maxlength="1000" placeholder=" " class="peer"></textarea>
-                                <label for="message">Votre Message</label>
-                                <div class="input-accent"></div>
-                                <div class="char-counter">
-                                    {{ contactData.message.length }} / 1000
-                                </div>
-                            </div>
-
-                            <button type="submit" [disabled]="!contactForm.form.valid" class="submit-btn">
-                                <span>Envoyer le Message</span>
-                                <div class="btn-glow"></div>
-                            </button>
-                        </form>
-
-                        <!-- Success Message -->
-                        <div *ngIf="submitted" class="success-message">
-                            <div class="success-icon">✓</div>
-                            <h3>Message Envoyé !</h3>
-                            <p>Merci pour votre message. Je vous recontacterai très prochainement.</p>
+                <!-- Form Section -->
+                <div class="contact-form">
+                    <form *ngIf="!submitted" #contactForm="ngForm" (ngSubmit)="onSubmit()" class="flex flex-col gap-6">
+                        <div class="input-group">
+                            <label class="label">Nom Complet</label>
+                            <input type="text" name="name" [(ngModel)]="contactData.name" required
+                                placeholder="Votre nom" class="input">
                         </div>
+                        <div class="input-group">
+                            <label class="label">Adresse E-mail</label>
+                            <input type="email" name="email" [(ngModel)]="contactData.email" required email
+                                placeholder="votre@email.com" class="input">
+                        </div>
+                        <div class="input-group">
+                            <label class="label">Votre Message</label>
+                            <textarea name="message" [(ngModel)]="contactData.message" required rows="4"
+                                placeholder="Ce que vous souhaitez me dire..." class="input"></textarea>
+                        </div>
+                        <button type="submit" [disabled]="!contactForm.form.valid" class="submit-button">
+                            <span>Envoyer le Message</span>
+                            <svg class="w-4 h-4 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M14 5l7 7m0 0l-7 7m7-7H3"></path>
+                            </svg>
+                        </button>
+                    </form>
+
+                    <!-- Minimal Success Message -->
+                    <div *ngIf="submitted" class="success-view">
+                        <div class="success-icon">✓</div>
+                        <h3 class="success-title">Message Envoyé</h3>
+                        <p class="success-text">Merci ! Je vous répondrai dans les plus brefs délais.</p>
                     </div>
                 </div>
             </div>
