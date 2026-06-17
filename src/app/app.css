@@ -1,0 +1,334 @@
+.hud {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  pointer-events: none;
+  user-select: none;
+  color: #eaf2f8;
+  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+}
+
+/* generic glass panel */
+.panel {
+  background: rgba(14, 20, 30, 0.55);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 14px;
+  box-shadow:
+    0 6px 20px rgba(0, 0, 0, 0.35),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(6px);
+}
+
+/* ---- player frame (top-left) ---- */
+.player {
+  position: absolute;
+  top: 16px;
+  left: 16px;
+  transform: scale(1.2);
+  transform-origin: top left;
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  padding: 12px 16px 12px 12px;
+}
+
+.avatar {
+  position: relative;
+  flex: none;
+  width: 54px;
+  height: 54px;
+  border-radius: 12px;
+  background: linear-gradient(160deg, #f7d3a8, #e6b483);
+  box-shadow:
+    0 0 0 2px #e3c878,
+    0 2px 6px rgba(0, 0, 0, 0.4);
+  overflow: hidden;
+}
+.avatar .hat {
+  position: absolute;
+  top: 7px;
+  left: -5px;
+  right: -5px;
+  height: 12px;
+  background: #e3c878;
+  border-radius: 6px;
+  box-shadow: 0 4px 0 #d3b056;
+}
+.avatar .eyes {
+  position: absolute;
+  top: 30px;
+  left: 0;
+  right: 0;
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+}
+.avatar .eyes i {
+  width: 6px;
+  height: 8px;
+  background: #2a2a2a;
+  border-radius: 2px;
+}
+
+.pinfo {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 176px;
+}
+.prow {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+}
+.pname {
+  font-weight: 700;
+  font-size: 15px;
+  letter-spacing: 0.3px;
+}
+.plevel {
+  font-size: 11px;
+  font-weight: 700;
+  color: #1c2530;
+  background: #ffd45e;
+  padding: 1px 8px;
+  border-radius: 999px;
+}
+
+.bar {
+  position: relative;
+  height: 14px;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.4);
+  overflow: hidden;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.5);
+}
+.bar i {
+  position: absolute;
+  inset: 0 auto 0 0;
+  display: block;
+  border-radius: 8px;
+}
+.bar.hp i {
+  background: linear-gradient(180deg, #ff7a7a, #d63b3b);
+}
+.bar.stam i {
+  background: linear-gradient(180deg, #8fe36b, #46b04a);
+}
+.bar span {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  font-weight: 700;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.7);
+}
+
+/* ---- top-right: wallet + minimap ---- */
+.topright {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  transform: scale(1.2);
+  transform-origin: top right;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 10px;
+}
+.wallet {
+  display: flex;
+  gap: 8px;
+}
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px;
+  border-radius: 999px;
+  background: rgba(14, 20, 30, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.3);
+  font-weight: 700;
+  font-size: 13px;
+}
+.pill b {
+  font-size: 14px;
+}
+.pill.gold {
+  color: #ffd76b;
+}
+.pill.gem {
+  color: #8fe1ff;
+}
+
+.minimap {
+  position: relative;
+  width: 180px;
+  height: 180px;
+  padding: 0;
+  overflow: hidden;
+}
+.minimap svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.minimap .compass {
+  position: absolute;
+  top: 6px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 10px;
+  font-weight: 800;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
+}
+.minimap .coords {
+  position: absolute;
+  bottom: 6px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 10px;
+  font-weight: 600;
+  opacity: 0.85;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
+}
+
+/* ---- action bar (bottom-center) ---- */
+.hotbar {
+  position: absolute;
+  bottom: 18px;
+  left: 50%;
+  transform: translateX(-50%) scale(1.2);
+  transform-origin: bottom center;
+  display: flex;
+  gap: 8px;
+}
+.slot {
+  position: relative;
+  width: 52px;
+  height: 52px;
+  border-radius: 12px;
+  background: rgba(14, 20, 30, 0.55);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 24px;
+  box-shadow:
+    0 4px 12px rgba(0, 0, 0, 0.3),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+.slot.empty {
+  opacity: 0.5;
+}
+.slot.on {
+  border-color: #ffd45e;
+  box-shadow:
+    0 0 0 2px rgba(255, 212, 94, 0.5),
+    0 4px 14px rgba(255, 200, 60, 0.35);
+}
+.slot b {
+  position: absolute;
+  right: 4px;
+  bottom: 2px;
+  font-size: 10px;
+  font-weight: 700;
+  color: #cfe0ee;
+  opacity: 0.8;
+}
+
+/* ---- controls legend (bottom-left) ---- */
+.legend {
+  position: absolute;
+  bottom: 20px;
+  left: 18px;
+  transform: scale(1.2);
+  transform-origin: bottom left;
+  font-size: 12px;
+  opacity: 0.82;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.6);
+}
+.legend b {
+  padding: 1px 6px;
+  border-radius: 5px;
+  background: rgba(255, 255, 255, 0.14);
+  font-weight: 700;
+}
+
+/* ---- roll cooldown (left of the hotbar slots) ---- */
+.rollcd {
+  position: relative;
+  width: 52px;
+  height: 52px;
+  margin-right: 10px;
+  border-radius: 12px;
+  background: rgba(14, 20, 30, 0.55);
+  border: 1px solid rgba(127, 208, 255, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 24px;
+  overflow: hidden;
+  box-shadow:
+    0 0 0 2px rgba(127, 208, 255, 0.3),
+    0 4px 12px rgba(0, 0, 0, 0.3);
+}
+/* dark sweep that shrinks from full → empty as the cooldown elapses */
+.rollcd-fill {
+  position: absolute;
+  inset: 0;
+  background: rgba(8, 12, 20, 0.72);
+  transform-origin: bottom;
+  transform: scaleY(0);
+}
+.rollcd-icon {
+  position: relative;
+  z-index: 1;
+}
+.rollcd-time {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 17px;
+  font-weight: 800;
+  color: #fff;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.85);
+}
+.rollcd b {
+  position: absolute;
+  right: 4px;
+  bottom: 2px;
+  z-index: 2;
+  font-size: 10px;
+  font-weight: 700;
+  color: #cfe0ee;
+  opacity: 0.85;
+}
+/* dim + drop the ready glow while recharging */
+.rollcd.cooling {
+  border-color: rgba(255, 255, 255, 0.14);
+  box-shadow:
+    0 4px 12px rgba(0, 0, 0, 0.3),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+.rollcd.cooling .rollcd-icon {
+  opacity: 0.4;
+}
+
+/* light blur around the window edges (centre stays sharp) */
+.edge-blur {
+  position: fixed;
+  inset: 0;
+  z-index: 5;
+  pointer-events: none;
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  -webkit-mask-image: radial-gradient(ellipse 72% 72% at 50% 50%, transparent 58%, #000 100%);
+  mask-image: radial-gradient(ellipse 72% 72% at 50% 50%, transparent 58%, #000 100%);
+}

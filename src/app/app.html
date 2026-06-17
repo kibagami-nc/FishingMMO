@@ -1,0 +1,107 @@
+<app-game />
+
+<div class="edge-blur"></div>
+
+<div class="hud">
+  <!-- Player frame (top-left) -->
+  <section class="panel player">
+    <div class="avatar">
+      <div class="hat"></div>
+      <div class="eyes"><i></i><i></i></div>
+    </div>
+    <div class="pinfo">
+      <div class="prow">
+        <span class="pname">Pêcheur</span>
+        <span class="plevel" id="level">Niv. 1</span>
+      </div>
+      <div class="bar hp"><i id="hp-fill" style="width: 100%"></i><span id="hp-text">100 / 100</span></div>
+    </div>
+  </section>
+
+  <!-- Currencies + minimap (top-right) -->
+  <section class="topright">
+    <div class="panel minimap">
+      <svg viewBox="0 0 100 100" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
+        <defs>
+          <clipPath id="mclip"><rect x="1" y="1" width="98" height="98" rx="14" /></clipPath>
+          <linearGradient id="mwater" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" stop-color="#3a86c0" />
+            <stop offset="1" stop-color="#23597f" />
+          </linearGradient>
+          <pattern id="mgrass" width="10" height="10" patternUnits="userSpaceOnUse">
+            <rect width="10" height="10" fill="#5aa044" />
+            <rect width="5" height="5" fill="#69ad4f" />
+            <rect x="5" y="5" width="5" height="5" fill="#69ad4f" />
+          </pattern>
+        </defs>
+        <g clip-path="url(#mclip)">
+          <rect x="0" y="0" width="100" height="100" fill="url(#mwater)" />
+          <path d="M-4 24 q 13 4 26 0 t 26 0 t 26 0 t 26 0" stroke="#fff" fill="none" stroke-width="1" opacity=".12" />
+          <path d="M-4 84 q 13 4 26 0 t 26 0 t 26 0 t 26 0" stroke="#fff" fill="none" stroke-width="1" opacity=".12" />
+          <g id="mm-world">
+          <!-- wooden dock reaching out over the water (+z) -->
+          <rect x="45.5" y="81.8" width="9" height="20" rx="1.5" fill="#9c6a38" />
+          <line x1="46" y1="87" x2="54" y2="87" stroke="#7d5328" stroke-width="0.7" />
+          <line x1="46" y1="92" x2="54" y2="92" stroke="#7d5328" stroke-width="0.7" />
+          <line x1="46" y1="97" x2="54" y2="97" stroke="#7d5328" stroke-width="0.7" />
+          <!-- grass island: checkerboard like the 3D 9x9 -->
+          <rect x="18.2" y="18.2" width="63.6" height="63.6" rx="8" fill="url(#mgrass)" stroke="#3f7a30" stroke-width="1" />
+          <!-- house (island centre) -->
+          <rect x="38.25" y="40.2" width="23.5" height="19.6" rx="2" fill="#cf7a4a" stroke="#7d3f24" stroke-width="0.8" />
+          <!-- trees -->
+          <circle cx="35.3" cy="35.3" r="3" fill="#3f7a30" />
+          <circle cx="24.6" cy="26.5" r="3" fill="#3f7a30" />
+          <circle cx="73.5" cy="25.6" r="3" fill="#3f7a30" />
+          <circle cx="23.1" cy="57.3" r="3" fill="#3f7a30" />
+          <circle cx="75.4" cy="68.6" r="3" fill="#3f7a30" />
+          <circle cx="37.8" cy="24.6" r="3" fill="#3f7a30" />
+          <!-- rocks -->
+          <circle cx="64.7" cy="37.3" r="1.9" fill="#8a8f98" />
+          <circle cx="67.6" cy="41.2" r="1.6" fill="#767c85" />
+          <circle cx="28.0" cy="70.5" r="1.9" fill="#8a8f98" />
+          <circle cx="76.9" cy="32.9" r="1.7" fill="#767c85" />
+          <circle cx="21.6" cy="40.2" r="2" fill="#8a8f98" />
+          <circle cx="57.3" cy="23.1" r="1.5" fill="#767c85" />
+          <circle cx="41.2" cy="74.5" r="1.7" fill="#767c85" />
+          <circle cx="78.4" cy="52.5" r="1.8" fill="#8a8f98" />
+          </g>
+          <!-- cast bobber (shown only while fishing) -->
+          <circle id="mm-bobber" cx="50" cy="50" r="2.2" fill="#e23b3b" stroke="#fff" stroke-width="0.7" style="display: none" />
+          <!-- player marker (position + facing) -->
+          <g id="mm-player">
+            <circle cx="50" cy="48" r="6" fill="#fff" opacity="0.18" />
+            <polygon points="50,42 45.5,52 54.5,52" fill="#fff" stroke="#16202b" stroke-width="1.2" />
+          </g>
+        </g>
+        <rect x="1" y="1" width="98" height="98" rx="14" fill="none" stroke="rgba(255,255,255,.32)" stroke-width="2" />
+      </svg>
+      <span class="compass">N</span>
+      <span class="coords" id="mm-coords">x 0 · z 0</span>
+    </div>
+
+    <div class="wallet">
+      <span class="pill gold"><b>🪙</b> <span id="coins">0</span></span>
+      <span class="pill gem"><b>💎</b> <span id="gems">0</span></span>
+    </div>
+  </section>
+
+  <!-- Action bar (bottom-center) — roll cooldown sits left of the slots -->
+  <section class="hotbar">
+    <div id="rollcd" class="rollcd" title="Roulade (Maj)">
+      <div id="rollcd-fill" class="rollcd-fill"></div>
+      <span class="rollcd-icon">🤸</span>
+      <span id="rollcd-time" class="rollcd-time"></span>
+      <b>Maj</b>
+    </div>
+    <div class="slot on"><span>🎣</span><b>1</b></div>
+    <div class="slot"><span>🐟</span><b>2</b></div>
+    <div class="slot"><span>🪱</span><b>3</b></div>
+    <div class="slot empty"><b>4</b></div>
+    <div class="slot empty"><b>5</b></div>
+  </section>
+
+  <!-- Controls legend (bottom-left) -->
+  <div class="legend">
+    <b>ZQSD</b> déplacer&nbsp;·&nbsp;<b>Maj</b> roulade&nbsp;·&nbsp;<b>E</b> canne&nbsp;·&nbsp;<b>clic</b> pêcher
+  </div>
+</div>
