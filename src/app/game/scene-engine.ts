@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 
 /** Live state pushed to the HUD each frame. */
 export interface HudState {
@@ -80,8 +81,14 @@ export class SceneEngine {
   private eFired = false; // whether the long-press fish already fired this hold
 
   private water?: THREE.Mesh;
-  private waterBase?: Float32Array;
   private readonly waterY = -0.7;
+  // base radius of the (organic, NON-square) island; the coastline wobbles around it
+  private readonly islandR = 17;
+  // stepped sandy seabed config: sand fills `sandReach` units beyond the shoreline
+  private readonly seabed = { sandReach: 13, stepWidth: 3, drop: 0.5, baseTop: -1.2 };
+  // swaying seaweed + swimming fish placed on the sand, animated each frame
+  private readonly seaweed: { mesh: THREE.Group; phase: number; bend: number }[] = [];
+  private readonly fish: { mesh: THREE.Group; cx: number; cz: number; r: number; y: number; speed: number; phase: number }[] = [];
   // shared time uniform driving the animated caustics in the water shader
   private readonly waterUniforms: { uTime: { value: number } } = { uTime: { value: 0 } };
   // procedural shimmer texture scrolled across the surface (two layers, opposite drift)
@@ -95,14 +102,20 @@ export class SceneEngine {
   // the house is rectangular, so it gets an axis-aligned box collision (centred at origin)
   private readonly houseHalf = { x: 2.8, z: 2.4 }; // footprint half-extents + character radius
   // circular see-through: a soft dither hole opens in obstacles that hide the player
-  private readonly occluders: THREE.Object3D[] = [];
+  // each occluder carries its OWN strength so only the object actually on the
+  // camera→player line fades — neighbours that merely overlap on screen stay solid
+  private readonly occluders: {
+    object: THREE.Object3D;
+    strength: { value: number };
+    cx: number; // logical XZ centre (merged props sit at the origin) for broad-phase culling
+    cz: number;
+  }[] = [];
   private readonly raycaster = new THREE.Raycaster();
   private readonly holeU = {
     center: { value: new THREE.Vector2() },
     viewZ: { value: 0 },
     radius: { value: 0.2 },
     aspect: { value: 1 },
-    strength: { value: 0 }, // ramps to 1 only while an obstacle blocks the view
   };
   private readonly _cc = new THREE.Vector3();
   private readonly _cdir = new THREE.Vector3();
@@ -137,8 +150,9 @@ export class SceneEngine {
     const height = container.clientHeight || window.innerHeight;
 
     // --- renderer ---
-    this.renderer = new THREE.WebGLRenderer({ antialias: true });
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    this.renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+    // cap DPR: above ~1.5 the extra fragments cost a lot for little visible gain
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
     this.renderer.setSize(width, height);
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
@@ -167,6 +181,8 @@ export class SceneEngine {
     this.buildWater();
     this.buildSplash();
     this.buildIsland();
+    this.buildSeabed();
+    this.buildSeaLife();
     this.buildScenery();
     this.buildHouse();
     this.scene.add(this.character);
@@ -229,6 +245,66 @@ export class SceneEngine {
     return pivot;
   }
 
+  /**
+   * Collapse a pile of static meshes into ONE mesh per distinct material — each
+   * cube's transform is baked in, so dozens of draw calls become a handful. The
+   * source materials are reused as-is (glass, emissive, etc. stay intact).
+   */
+  private mergeByMaterial(meshes: THREE.Mesh[]): THREE.Mesh[] {
+    const groups = new Map<string, { mat: THREE.Material; geos: THREE.BufferGeometry[] }>();
+    for (const mesh of meshes) {
+      mesh.updateWorldMatrix(true, false);
+      const mat = mesh.material as THREE.MeshStandardMaterial;
+      const key = `${mat.color.getHexString()}|${mat.roughness}|${mat.metalness}|${mat.emissive?.getHexString() ?? ''}|${mat.emissiveIntensity}|${mat.side}|${mat.transparent}`;
+      let entry = groups.get(key);
+      if (!entry) entry = (groups.set(key, { mat, geos: [] }), groups.get(key)!);
+      const g = (mesh.geometry as THREE.BufferGeometry).clone();
+      if (g.getAttribute('uv')) g.deleteAttribute('uv'); // normalise attributes so they merge
+      g.applyMatrix4(mesh.matrixWorld); // bake the world transform into the verts
+      entry.geos.push(g);
+    }
+    const out: THREE.Mesh[] = [];
+    for (const { mat, geos } of groups.values()) {
+      const merged = geos.length === 1 ? geos[0] : (mergeGeometries(geos, false) ?? geos[0]);
+      for (const g of geos) if (g !== merged) g.dispose();
+      const m = new THREE.Mesh(merged, mat);
+      m.castShadow = true;
+      m.receiveShadow = true;
+      out.push(m);
+    }
+    return out;
+  }
+
+  /**
+   * Merge meshes into a SINGLE vertex-coloured mesh (one draw call, one material),
+   * baking each source colour into the verts. Used for matte props like trees.
+   */
+  private mergeColored(meshes: THREE.Mesh[]): THREE.Mesh {
+    const geos: THREE.BufferGeometry[] = [];
+    for (const mesh of meshes) {
+      mesh.updateWorldMatrix(true, false);
+      const g = (mesh.geometry as THREE.BufferGeometry).clone();
+      if (g.getAttribute('uv')) g.deleteAttribute('uv');
+      g.applyMatrix4(mesh.matrixWorld);
+      const c = (mesh.material as THREE.MeshStandardMaterial).color;
+      const n = g.attributes['position'].count;
+      const carr = new Float32Array(n * 3);
+      for (let i = 0; i < n; i++) {
+        carr[i * 3] = c.r;
+        carr[i * 3 + 1] = c.g;
+        carr[i * 3 + 2] = c.b;
+      }
+      g.setAttribute('color', new THREE.BufferAttribute(carr, 3));
+      geos.push(g);
+    }
+    const merged = mergeGeometries(geos, false) ?? geos[0];
+    const mat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.92, metalness: 0 });
+    const m = new THREE.Mesh(merged, mat);
+    m.castShadow = true;
+    m.receiveShadow = true;
+    return m;
+  }
+
   private buildLights(): void {
     const hemi = new THREE.HemisphereLight(0xcfeaff, 0x4a6b3a, 1.0);
     this.scene.add(hemi);
@@ -238,12 +314,12 @@ export class SceneEngine {
     sun.castShadow = true;
     sun.shadow.mapSize.set(2048, 2048);
     const c = sun.shadow.camera;
-    c.left = -16;
-    c.right = 16;
-    c.top = 16;
-    c.bottom = -16;
+    c.left = -30;
+    c.right = 30;
+    c.top = 30;
+    c.bottom = -30;
     c.near = 1;
-    c.far = 60;
+    c.far = 80;
     sun.shadow.bias = -0.0004;
     this.scene.add(sun);
   }
@@ -252,10 +328,38 @@ export class SceneEngine {
     return Math.sin(x * 0.18 + t) * 0.25 + Math.cos(z * 0.22 + t * 0.8) * 0.2;
   }
 
+  /**
+   * Radius of the island's coastline in the direction of (x, z) — a low-frequency
+   * lumpy curve around islandR, giving an organic (non-square) shore. Periodic in
+   * angle (integer harmonics) so there's no seam. The SAME formula is mirrored in
+   * the water shader so foam/depth bands hug the real shoreline.
+   */
+  private islandReach(x: number, z: number): number {
+    const a = Math.atan2(z, x);
+    return (
+      this.islandR +
+      2.4 * Math.sin(3 * a + 0.6) +
+      1.4 * Math.sin(5 * a + 2.2) +
+      1.7 * Math.sin(2 * a - 1.1)
+    );
+  }
+
+  /** Distance of (x, z) beyond the shore: <0 on land, 0 at the water's edge, >0 at sea. */
+  private beyondShore(x: number, z: number): number {
+    return Math.hypot(x, z) - this.islandReach(x, z);
+  }
+
+  /** Z of the last grass-cube row on the +Z shore — the dock starts flush here. */
+  private get dockBase(): number {
+    return Math.floor(this.islandReach(0, 1));
+  }
+  private readonly dockLen = 6; // number of planks reaching out over the water
+
   /** Height the bobber rests on at (x, z): grass island, wooden dock, or wavy water. */
   private support(x: number, z: number, t: number): number {
-    if (Math.abs(x) <= 6.5 && Math.abs(z) <= 6.5) return 0.06; // grass island top
-    if (Math.abs(x) <= 1.0 && z >= 6.0 && z <= 11.0) return 0.12; // wooden dock
+    if (this.beyondShore(x, z) <= 0) return 0.06; // grass island top
+    if (Math.abs(x) <= 1.0 && z >= this.dockBase - 0.5 && z <= this.dockBase + this.dockLen - 0.5)
+      return 0.12; // dock
     return this.waterY + this.waveAt(x, z, t); // open (wavy) water
   }
 
@@ -315,11 +419,10 @@ export class SceneEngine {
     const seg = 48; // chunkier facets for the cartoon-cubic look
     const geo = new THREE.PlaneGeometry(size, size, seg, seg);
     geo.rotateX(-Math.PI / 2); // lay flat in the XZ plane
-    this.waterBase = Float32Array.from(geo.attributes['position'].array as Float32Array);
 
     // Wind-Waker-style toon water: an unlit, flat-coloured surface — the look comes
     // entirely from hard depth bands + animated white foam injected in the shader below.
-    const mat = new THREE.MeshBasicMaterial({ color: 0x2b86c9, transparent: true, opacity: 0.92 });
+    const mat = new THREE.MeshBasicMaterial({ color: 0x2b86c9, transparent: true, opacity: 0.84 });
 
     // Layer 2 (+ extra caustics): inject GLSL via onBeforeCompile so scene lights and
     // the island's cast shadow STILL affect the surface. A `uTime` uniform animates
@@ -328,15 +431,22 @@ export class SceneEngine {
     mat.onBeforeCompile = (shader: THREE.WebGLProgramParametersWithUniforms): void => {
       shader.uniforms['uTime'] = this.waterUniforms.uTime;
 
-      // --- vertex: pass world XZ so caustics tile in WORLD units (not stretched UVs) ---
+      // --- vertex: displace the wave ON THE GPU (was a per-frame CPU loop + buffer
+      //     upload) and pass world XZ so caustics tile in WORLD units ---
       shader.vertexShader = shader.vertexShader
         .replace(
           '#include <common>',
-          '#include <common>\nvarying vec2 vWaterWorld;',
+          '#include <common>\nuniform float uTime;\nvarying vec2 vWaterWorld;',
         )
         .replace(
           '#include <begin_vertex>',
-          '#include <begin_vertex>\nvWaterWorld = ( modelMatrix * vec4( transformed, 1.0 ) ).xz;',
+          [
+            '#include <begin_vertex>',
+            'vec2 wWorld = ( modelMatrix * vec4( transformed, 1.0 ) ).xz;',
+            // same curve as waveAt() on the CPU, so the bobber rides the visible waves
+            'transformed.y += sin( wWorld.x * 0.18 + uTime ) * 0.25 + cos( wWorld.y * 0.22 + uTime * 0.8 ) * 0.2;',
+            'vWaterWorld = wWorld;',
+          ].join('\n'),
         );
 
       // --- fragment: add animated caustic highlights into diffuseColor BEFORE lighting ---
@@ -365,9 +475,11 @@ export class SceneEngine {
             // snap world XZ onto a coarse grid → blocky, pixelated water
             'float px = 0.5;',
             'vec2 pw = floor( vWaterWorld / px ) * px;',
-            // distance to the island AABB (half-extent 6.5): 0 at the shore, grows outward
-            'vec2 q = abs( pw ) - vec2( 6.5 );',
-            'float dShore = length( max( q, vec2( 0.0 ) ) );',
+            // distance beyond the ORGANIC coastline (same lumpy radial curve as the
+            // CPU islandReach()): 0 at the shore, grows out to sea
+            'float ang = atan( pw.y, pw.x );',
+            `float reach = ${this.islandR.toFixed(1)} + 2.4 * sin( 3.0 * ang + 0.6 ) + 1.4 * sin( 5.0 * ang + 2.2 ) + 1.7 * sin( 2.0 * ang - 1.1 );`,
+            'float dShore = max( 0.0, length( pw ) - reach );',
             // pixel depth: hard bands from light shallows to deep blue
             'float depthT = floor( clamp( dShore / 20.0, 0.0, 1.0 ) * 4.0 ) / 4.0;',
             'diffuseColor.rgb = mix( vec3( 0.10, 0.30, 0.48 ), vec3( 0.03, 0.15, 0.34 ), depthT );',
@@ -381,7 +493,7 @@ export class SceneEngine {
           ].join('\n'),
         );
     };
-    mat.customProgramCacheKey = (): string => 'water-pixel-v7';
+    mat.customProgramCacheKey = (): string => 'water-pixel-v10';
 
     const water = new THREE.Mesh(geo, mat);
     water.position.y = this.waterY;
@@ -414,7 +526,10 @@ export class SceneEngine {
   }
 
   /** Punches a soft circular dither hole in an obstacle where it covers the player. */
-  private addCutout(material: THREE.Material | THREE.Material[]): void {
+  private addCutout(
+    material: THREE.Material | THREE.Material[],
+    strength: { value: number },
+  ): void {
     const mats = Array.isArray(material) ? material : [material];
     for (const mat of mats) {
       mat.onBeforeCompile = (shader: THREE.WebGLProgramParametersWithUniforms): void => {
@@ -422,7 +537,7 @@ export class SceneEngine {
         shader.uniforms['uHoleViewZ'] = this.holeU.viewZ;
         shader.uniforms['uHoleRadius'] = this.holeU.radius;
         shader.uniforms['uHoleAspect'] = this.holeU.aspect;
-        shader.uniforms['uHoleStrength'] = this.holeU.strength;
+        shader.uniforms['uHoleStrength'] = strength;
         shader.vertexShader = shader.vertexShader
           .replace(
             '#include <common>',
@@ -444,6 +559,12 @@ export class SceneEngine {
               'uniform float uHoleRadius;',
               'uniform float uHoleAspect;',
               'uniform float uHoleStrength;',
+              // true ORDERED (Bayer) dither — a hash gives clumpy colour noise on big
+              // surfaces like the house roof/walls; ordered gives a clean stipple. Use
+              // 8x8 (64 levels) so the open/close ramp is smooth, not stepped
+              'float _bayer2( vec2 a ) { a = floor( a ); return fract( a.x * 0.5 + a.y * a.y * 0.75 ); }',
+              'float _bayer4( vec2 a ) { return _bayer2( 0.5 * a ) * 0.25 + _bayer2( a ); }',
+              'float _bayer8( vec2 a ) { return _bayer4( 0.5 * a ) * 0.25 + _bayer2( a ); }',
             ].join('\n'),
           )
           .replace(
@@ -454,14 +575,14 @@ export class SceneEngine {
               // obstacles standing IN FRONT of them
               'if ( uHoleStrength > 0.001 && vHoleViewZ < uHoleViewZ - 0.25 ) {',
               '  vec2 hd = ( vHoleNdc - uHoleCenter ) * vec2( uHoleAspect, 1.0 );',
-              '  float hole = ( 1.0 - smoothstep( 0.55, 1.0, length( hd ) / max( uHoleRadius, 0.001 ) ) ) * uHoleStrength;',
-              '  float dith = fract( 52.9829189 * fract( dot( gl_FragCoord.xy, vec2( 0.06711056, 0.00583715 ) ) ) );',
+              '  float hole = ( 1.0 - smoothstep( 0.72, 1.0, length( hd ) / max( uHoleRadius, 0.001 ) ) ) * uHoleStrength;',
+              '  float dith = _bayer8( gl_FragCoord.xy );',
               '  if ( hole > dith ) discard;', // ordered dither → clean soft-edged circle
               '}',
             ].join('\n'),
           );
       };
-      mat.customProgramCacheKey = (): string => 'occluder-cutout-v2';
+      mat.customProgramCacheKey = (): string => 'occluder-cutout-v4';
       mat.needsUpdate = true;
     }
   }
@@ -483,43 +604,351 @@ export class SceneEngine {
   }
 
   private buildIsland(): void {
-    const GRID = 13;
-    const half = (GRID - 1) / 2;
-    const greens = [0x6ab150, 0x5aa044];
+    const greenA = new THREE.Color(0x6ab150);
+    const greenB = new THREE.Color(0x5aa044);
 
-    // checkerboard grass top — each tile is a cube (top face at y = 0)
-    for (let ix = 0; ix < GRID; ix++) {
-      for (let iz = 0; iz < GRID; iz++) {
-        const cube = this.box(1, 1, 1, greens[(ix + iz) % 2]);
-        cube.position.set(ix - half, -0.5, iz - half);
-        cube.castShadow = false; // flat top surface — no need to cast
-        this.scene.add(cube);
+    // checkerboard grass top — only cubes inside the organic coastline, so the
+    // outline is lumpy while every tile stays a cube. One InstancedMesh.
+    const reach = Math.ceil(this.islandR + 6); // worst-case coastline bulge
+    const cells: [number, number][] = [];
+    for (let ix = -reach; ix <= reach; ix++) {
+      for (let iz = -reach; iz <= reach; iz++) {
+        if (this.beyondShore(ix, iz) <= 0) cells.push([ix, iz]);
+      }
+    }
+    const grass = new THREE.InstancedMesh(
+      new THREE.BoxGeometry(1, 1, 1),
+      new THREE.MeshStandardMaterial({ roughness: 0.95, metalness: 0 }),
+      cells.length,
+    );
+    const m = new THREE.Matrix4();
+    cells.forEach(([x, z], idx) => {
+      m.makeTranslation(x, -0.5, z);
+      grass.setMatrixAt(idx, m);
+      grass.setColorAt(idx, (x + z) & 1 ? greenA : greenB);
+    });
+    grass.instanceMatrix.needsUpdate = true;
+    if (grass.instanceColor) grass.instanceColor.needsUpdate = true;
+    grass.castShadow = false;
+    grass.receiveShadow = true;
+    this.scene.add(grass);
+
+    // tapered dirt + rock underbelly that follows the same outline, shrunk inward
+    // at each lower layer → a cubic "floating island" underside (no square corners)
+    this.buildIslandLayer(1.0, -2.0, 2.0, 0x7a4a28); // dirt
+    this.buildIslandLayer(0.84, -4.0, 2.6, 0x6b7280); // upper rock
+    this.buildIslandLayer(0.6, -6.4, 3.2, 0x586573); // lower rock
+
+    this.buildMountains();
+  }
+
+  /** One instanced cube layer shaped like the island, scaled inward by `shrink`. */
+  private buildIslandLayer(shrink: number, y: number, h: number, color: number): void {
+    const reach = Math.ceil(this.islandR + 6);
+    const cells: [number, number][] = [];
+    for (let ix = -reach; ix <= reach; ix++) {
+      for (let iz = -reach; iz <= reach; iz++) {
+        // inset = shrink the coastline toward the centre for the taper
+        if (Math.hypot(ix, iz) <= this.islandReach(ix, iz) * shrink) cells.push([ix, iz]);
+      }
+    }
+    if (!cells.length) return;
+    const layer = new THREE.InstancedMesh(
+      new THREE.BoxGeometry(1, h, 1),
+      new THREE.MeshStandardMaterial({ color, roughness: 0.95, metalness: 0 }),
+      cells.length,
+    );
+    const m = new THREE.Matrix4();
+    cells.forEach(([x, z], idx) => {
+      m.makeTranslation(x, y, z);
+      layer.setMatrixAt(idx, m);
+    });
+    layer.instanceMatrix.needsUpdate = true;
+    layer.castShadow = false;
+    layer.receiveShadow = false; // underground — shadows here are never seen
+    this.scene.add(layer);
+  }
+
+  /**
+   * Voxel mountains: a per-column heightfield (smooth radial dome + deterministic
+   * noise, quantised to 1-unit steps) gives an organic blocky silhouette. Columns
+   * are coloured by height into concentric grass → rock → snow-cap bands. Each peak
+   * is merged into ONE vertex-coloured mesh that is ALSO a see-through occluder, so
+   * the dither circle opens through a mountain when it hides the player. A circular
+   * collision per peak makes the player walk around it.
+   */
+  private buildMountains(): void {
+    const grass = new THREE.Color(0x5aa044);
+    const rock = new THREE.Color(0x7c828c);
+    const rockDk = new THREE.Color(0x5f6670);
+    const snow = new THREE.Color(0xeef3f7);
+    // [centreX, centreZ, radius, peakHeight] — kept well inside the coastline
+    const peaks: [number, number, number, number][] = [
+      [-9, -8, 6, 7],
+      [8, -8, 6.5, 10],
+      [-12, 8, 5, 6],
+      [11, 9, 6, 8],
+      [2, -12, 4, 5],
+      [-11, -2, 3.5, 5],
+    ];
+    const c = new THREE.Color();
+    for (const [mx, mz, R, peakH] of peaks) {
+      const cols: THREE.Mesh[] = [];
+      const Ri = Math.ceil(R);
+      for (let ix = -Ri; ix <= Ri; ix++) {
+        for (let iz = -Ri; iz <= Ri; iz++) {
+          if (this.beyondShore(mx + ix, mz + iz) > 0) continue; // clip at the shore
+          const d = Math.sqrt(ix * ix + iz * iz) / R;
+          if (d > 1) continue;
+          const dome = Math.cos(d * Math.PI) * 0.5 + 0.5; // 1 at the centre → 0 at the rim
+          const noise = this.det((mx + ix) * 0.7 + (mz + iz) * 1.9);
+          let h = peakH * Math.pow(dome, 1.35) * (0.78 + 0.5 * noise);
+          h = Math.round(h); // 1-unit blocky terraces
+          if (h < 1) continue;
+          const t = h / peakH;
+          if (t < 0.28) c.copy(grass).lerp(rock, t / 0.28);
+          else if (t < 0.72) c.copy(rock).lerp(rockDk, ((t - 0.28) / 0.44) * 0.6);
+          else c.copy(rock).lerp(snow, (t - 0.72) / 0.28);
+          const col = this.box(1, h, 1, c.getHex());
+          col.position.set(mx + ix, h / 2, mz + iz);
+          cols.push(col);
+        }
+      }
+      this.obstacles.push({ x: mx, z: mz, r: R * 0.85 });
+      if (!cols.length) continue;
+      // one merged mesh per peak → its own cutout strength + broad-phase centre
+      const peak = this.mergeColored(cols);
+      for (const col of cols) (col.geometry as THREE.BufferGeometry).dispose();
+      this.scene.add(peak);
+      const strength = { value: 0 };
+      this.occluders.push({ object: peak, strength, cx: mx, cz: mz });
+      this.addCutout(peak.material, strength);
+    }
+  }
+
+  /**
+   * Sandy seabed: a belt of cubes hugging the organic coastline that steps DOWN
+   * the farther it sits from shore, so the sand slopes into ever-deeper water and
+   * fades to a darker, murkier tone with depth. One InstancedMesh (one draw call).
+   */
+  /** Top surface Y of the sand at a world cell, or null if (x,z) isn't on the shelf. */
+  private seabedTopAt(x: number, z: number): number | null {
+    const s = this.seabed;
+    const beyond = this.beyondShore(Math.round(x), Math.round(z));
+    if (beyond <= 0 || beyond > s.sandReach) return null; // on land or past the shelf
+    const terrace = Math.floor(beyond / s.stepWidth);
+    return s.baseTop - terrace * s.drop;
+  }
+
+  private buildSeabed(): void {
+    const s = this.seabed;
+    const sandLt = new THREE.Color(0xe6d49a); // bright, shallow sand
+    const sandDk = new THREE.Color(0x6f6c48); // dark, deep, murky sand
+
+    const cells: { x: number; z: number; beyond: number }[] = [];
+    const reach = Math.ceil(this.islandR + 6 + s.sandReach);
+    for (let cx = -reach; cx <= reach; cx++) {
+      for (let cz = -reach; cz <= reach; cz++) {
+        const beyond = this.beyondShore(cx, cz);
+        if (beyond <= 0 || beyond > s.sandReach) continue;
+        cells.push({ x: cx, z: cz, beyond });
       }
     }
 
-    // tapered dirt + rock underbelly → floating-island look
-    const dirt = this.box(GRID, 2, GRID, 0x7a4a28);
-    dirt.position.y = -2;
-    const rock1 = this.box(GRID - 2, 2.2, GRID - 2, 0x6b7280);
-    rock1.position.y = -4.1;
-    const rock2 = this.box(GRID - 4.5, 2.4, GRID - 4.5, 0x586573);
-    rock2.position.y = -6.2;
-    this.scene.add(dirt, rock1, rock2);
+    const geo = new THREE.BoxGeometry(1, 1, 1);
+    const mat = new THREE.MeshStandardMaterial({ roughness: 0.96, metalness: 0 });
+    const mesh = new THREE.InstancedMesh(geo, mat, cells.length);
+    const m = new THREE.Matrix4();
+    const col = new THREE.Color();
+    const H = 2; // each cube is tall so the terraces overlap into a solid floor
+    cells.forEach((c, i) => {
+      const topY = this.seabedTopAt(c.x, c.z) ?? s.baseTop;
+      m.makeScale(1, H, 1);
+      m.setPosition(c.x, topY - H / 2, c.z);
+      mesh.setMatrixAt(i, m);
+      col.copy(sandLt).lerp(sandDk, Math.min(1, c.beyond / s.sandReach));
+      if ((c.x + c.z) & 1) col.multiplyScalar(0.9); // faint checker so it still reads as cubes
+      mesh.setColorAt(i, col);
+    });
+    mesh.instanceMatrix.needsUpdate = true;
+    if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+    mesh.castShadow = false;
+    mesh.receiveShadow = false; // submerged sand — shadows barely read through the water
+    this.scene.add(mesh);
+  }
+
+  /** Deterministic [0,1) pseudo-noise — fixed per seed, so the scene never shuffles. */
+  private det(n: number): number {
+    const s = Math.sin(n * 12.9898 + 4.1414) * 43758.5453;
+    return s - Math.floor(s);
+  }
+
+  /** A blocky tuft of seaweed: a stack of leaf cubes that sways from the base. */
+  private makeSeaweed(seed: number): THREE.Group {
+    const g = new THREE.Group();
+    const greens = [0x2f8f4e, 0x3aa85c, 0x277a42];
+    const blades = 2 + Math.floor(this.det(seed) * 3);
+    for (let b = 0; b < blades; b++) {
+      const blade = new THREE.Group();
+      const segs = 3 + Math.floor(this.det(seed + b * 2.3) * 3);
+      const col = greens[b % greens.length];
+      for (let s = 0; s < segs; s++) {
+        const leaf = this.box(0.18, 0.42, 0.1, col);
+        leaf.position.y = 0.21 + s * 0.36; // stack upward
+        leaf.castShadow = false;
+        blade.add(leaf);
+      }
+      blade.position.set(
+        (this.det(seed + b + 0.7) - 0.5) * 0.5,
+        0,
+        (this.det(seed + b + 1.9) - 0.5) * 0.5,
+      );
+      blade.rotation.y = this.det(seed + b + 3.3) * Math.PI;
+      g.add(blade);
+    }
+    return g;
+  }
+
+  /** A small cubic fish: fat body + a wagging tail fin. */
+  private makeFish(colorIdx: number): THREE.Group {
+    const palette = [0xff8c42, 0xffd23f, 0xef476f, 0x4cc9f0, 0xb5179e, 0xe0e0e0];
+    const col = palette[colorIdx % palette.length];
+    const g = new THREE.Group();
+    const body = this.box(0.5, 0.32, 0.24, col);
+    body.castShadow = false;
+    const tail = this.box(0.16, 0.26, 0.06, col);
+    tail.position.set(-0.33, 0, 0); // behind the body (fish swims toward +x)
+    tail.castShadow = false;
+    const topFin = this.box(0.18, 0.14, 0.06, col);
+    topFin.position.set(0.02, 0.22, 0);
+    topFin.castShadow = false;
+    // a tiny dark eye
+    const eye = this.box(0.06, 0.06, 0.06, 0x10131a);
+    eye.position.set(0.2, 0.05, 0.13);
+    g.add(body, tail, topFin, eye);
+    return g;
+  }
+
+  /** A big clam: two angled half-shells with a ribbed pink interior. */
+  private makeShell(scale: number, variant: number): THREE.Group {
+    const g = new THREE.Group();
+    const shellCol = variant % 2 === 0 ? 0xf3d9c8 : 0xe9c6d6;
+    const lower = this.box(0.9, 0.34, 0.7, shellCol);
+    lower.position.y = 0.17;
+    lower.castShadow = false;
+    const upper = this.box(0.9, 0.34, 0.7, shellCol);
+    upper.position.set(0, 0.46, -0.16);
+    upper.rotation.x = -0.55; // gape the clam open
+    upper.castShadow = false;
+    // ribs on top so it reads as a shell, not a box
+    for (let i = 0; i < 3; i++) {
+      const rib = this.box(0.16, 0.06, 0.72, 0xcf9fb4);
+      rib.position.set(-0.28 + i * 0.28, 0.35, 0);
+      rib.castShadow = false;
+      g.add(rib);
+    }
+    g.add(lower, upper);
+    g.scale.setScalar(scale);
+    return g;
+  }
+
+  /**
+   * Place swaying seaweed, swimming fish and big clams on the sand belt. Items are
+   * laid out at FIXED angles around the island, each pushed just past the (organic)
+   * shore by a deterministic offset, so they always land on the sand and follow the
+   * real coastline. Same layout on every load.
+   */
+  private buildSeaLife(): void {
+    const s = this.seabed;
+    // a cell on the sand belt at angle `a`, `off` units beyond the shore
+    const at = (a: number, off: number): { x: number; z: number; top: number } | null => {
+      const dirX = Math.cos(a);
+      const dirZ = Math.sin(a);
+      // step out from the shore until we land on a sand cell (the shore is lumpy)
+      const r0 = this.islandReach(dirX, dirZ);
+      const x = Math.round(dirX * (r0 + off));
+      const z = Math.round(dirZ * (r0 + off));
+      const top = this.seabedTopAt(x, z);
+      return top == null ? null : { x, z, top };
+    };
+
+    // seaweed — rooted on the sand, swaying in update()
+    const WEED = 14;
+    for (let i = 0; i < WEED; i++) {
+      const c = at((i / WEED) * Math.PI * 2 + 0.15, 1.2 + this.det(i + 0.5) * (s.sandReach - 3));
+      if (!c) continue;
+      const w = this.makeSeaweed(i + 1);
+      w.position.set(c.x, c.top, c.z);
+      w.scale.setScalar(0.28 + this.det(i + 0.3) * 0.22);
+      this.scene.add(w);
+      this.seaweed.push({ mesh: w, phase: i * 0.7, bend: 0.12 + this.det(i + 0.8) * 0.12 });
+    }
+
+    // big clams resting on the sand
+    const SHELLS = 7;
+    for (let i = 0; i < SHELLS; i++) {
+      const c = at((i / SHELLS) * Math.PI * 2 + 1.0, 1.5 + this.det(i + 4.0) * (s.sandReach - 4));
+      if (!c) continue;
+      const shell = this.makeShell(0.42 + this.det(i + 5.1) * 0.28, i);
+      shell.position.set(c.x, c.top, c.z);
+      shell.rotation.y = this.det(i + 2.2) * Math.PI * 2;
+      this.scene.add(shell);
+    }
+
+    // fish circling lazily a little above the seabed
+    const FISH = 12;
+    for (let i = 0; i < FISH; i++) {
+      const c = at((i / FISH) * Math.PI * 2 + 0.5, 2.5 + this.det(i + 8.0) * (s.sandReach - 4));
+      if (!c) continue;
+      const f = this.makeFish(i);
+      const y = Math.min(this.waterY - 0.35, c.top + 0.7 + this.det(i + 9.4) * 0.5); // submerged
+      f.position.set(c.x, y, c.z);
+      this.scene.add(f);
+      this.fish.push({
+        mesh: f,
+        cx: c.x,
+        cz: c.z,
+        r: 0.8 + this.det(i + 6.6) * 1.4,
+        y,
+        speed: (i % 2 === 0 ? 1 : -1) * (0.4 + this.det(i + 7.7) * 0.45),
+        phase: i * 0.9,
+      });
+    }
+  }
+
+  /** Sway the seaweed and swim the fish in gentle loops just above the sand. */
+  private animateSeaLife(t: number): void {
+    for (const w of this.seaweed) {
+      const sway = Math.sin(t * 1.5 + w.phase) * w.bend;
+      w.mesh.rotation.z = sway;
+      w.mesh.rotation.x = Math.cos(t * 1.2 + w.phase) * w.bend * 0.6;
+    }
+    for (const f of this.fish) {
+      const a = f.phase + t * f.speed;
+      const x = f.cx + Math.cos(a) * f.r;
+      const z = f.cz + Math.sin(a) * f.r;
+      f.mesh.position.set(x, f.y + Math.sin(t * 2 + f.phase) * 0.08, z);
+      // face the direction of travel (tangent to the circle)
+      f.mesh.rotation.y = -a - (f.speed >= 0 ? Math.PI / 2 : -Math.PI / 2);
+      // wag the whole body slightly as it swims
+      f.mesh.rotation.z = Math.sin(t * 6 + f.phase) * 0.12;
+    }
   }
 
   private buildScenery(): void {
-    // wooden dock reaching out over the water (decorative)
+    // wooden dock — first plank sits flush ON the grass-edge cube, then reaches out
+    const base = this.dockBase;
     const dock = new THREE.Group();
-    for (let i = 0; i < 5; i++) {
+    for (let i = 0; i < this.dockLen; i++) {
       const plank = this.box(2, 0.18, 1, i % 2 ? 0xa9743f : 0x9c6a38);
-      plank.position.set(0, 0, 6.5 + i);
+      plank.position.set(0, 0, base + i);
       dock.add(plank);
     }
     for (const [px, pz] of [
-      [-0.8, 7],
-      [0.8, 7],
-      [-0.8, 10],
-      [0.8, 10],
+      [-0.8, base + 2],
+      [0.8, base + 2],
+      [-0.8, base + this.dockLen - 1],
+      [0.8, base + this.dockLen - 1],
     ] as const) {
       const post = this.box(0.18, 1.6, 0.18, 0x6f4a26);
       post.position.set(px, -0.7, pz);
@@ -527,56 +956,62 @@ export class SceneEngine {
     }
     this.scene.add(dock);
 
-    // scatter trees + rocks around the island (each registers its own collision)
+    // scatter trees + rocks around the bigger island (each registers its own collision)
     for (const [tx, tz] of [
-      [-3, -3],
-      [-5.2, -4.8],
-      [4.8, -5],
-      [-5.5, 1.5],
-      [5.2, 3.8],
-      [-2.5, -5.2],
+      [-3, -3], [-5.2, -4.8], [4.8, -5], [-5.5, 1.5], [5.2, 3.8], [-2.5, -5.2],
+      [-9, -2], [8, 2], [-7, 6], [7, -8], [10, 5], [-12, 3], [4, 9], [-4, 11],
+      [12, -3], [-8, -13], [14, 13], [-15, 13], [15, -10], [-2, 14],
     ] as const) {
       this.addTree(tx, tz);
     }
     for (const [rx, rz, rs] of [
-      [3, -2.6, 0.95],
-      [3.6, -1.8, 0.62],
-      [-4.5, 4.2, 0.85],
-      [5.5, -3.5, 0.7],
-      [-5.8, -2, 1.0],
-      [1.5, -5.5, 0.6],
-      [-1.8, 5, 0.7],
-      [5.8, 0.5, 0.8],
+      [3, -2.6, 0.95], [3.6, -1.8, 0.62], [-4.5, 4.2, 0.85], [5.5, -3.5, 0.7],
+      [-5.8, -2, 1.0], [1.5, -5.5, 0.6], [-1.8, 5, 0.7], [5.8, 0.5, 0.8],
+      [-10, 6, 1.1], [9, -4, 0.9], [13, 4, 1.2], [-14, -6, 1.0], [6, 13, 0.8],
+      [-7, -8, 0.7], [16, 1, 0.9], [0, 16, 1.0],
     ] as const) {
       this.addRock(rx, rz, rs);
     }
   }
 
+  /** True if (x,z) within `r` would overlap something already placed (e.g. a mountain). */
+  private blocked(x: number, z: number, r: number): boolean {
+    for (const o of this.obstacles) {
+      const dx = x - o.x;
+      const dz = z - o.z;
+      if (dx * dx + dz * dz < (o.r + r) * (o.r + r)) return true;
+    }
+    return false;
+  }
+
   private addTree(x: number, z: number): void {
-    const tree = new THREE.Group();
+    if (this.beyondShore(x, z) > -0.8) return; // must be safely inland, not over the water
+    if (this.blocked(x, z, 1.5)) return; // don't sprout inside a mountain or another prop
     const trunk = this.box(0.5, 1.6, 0.5, 0x6f4a26);
-    trunk.position.y = 0.8;
+    trunk.position.set(x, 0.8, z);
     const leaves1 = this.box(1.8, 1.0, 1.8, 0x4f8f3a);
-    leaves1.position.y = 2.0;
+    leaves1.position.set(x, 2.0, z);
     const leaves2 = this.box(1.1, 0.9, 1.1, 0x5aa044);
-    leaves2.position.y = 2.8;
-    tree.add(trunk, leaves1, leaves2);
-    tree.position.set(x, 0, z);
+    leaves2.position.set(x, 2.8, z);
+    // 3 cubes → 1 vertex-coloured mesh (a single draw call per tree)
+    const tree = this.mergeColored([trunk, leaves1, leaves2]);
+    for (const s of [trunk, leaves1, leaves2]) (s.geometry as THREE.BufferGeometry).dispose();
     this.scene.add(tree);
-    this.occluders.push(tree);
-    tree.traverse((o) => {
-      const m = o as THREE.Mesh;
-      if (m.isMesh) this.addCutout(m.material);
-    });
+    const strength = { value: 0 };
+    this.occluders.push({ object: tree, strength, cx: x, cz: z });
+    this.addCutout(tree.material, strength);
     this.obstacles.push({ x, z, r: 1.5 });
   }
 
   private addRock(x: number, z: number, s: number): void {
+    if (this.beyondShore(x, z) > -0.6) return; // keep rocks on land, not in the surf
+    if (this.blocked(x, z, s * 0.55 + 0.32)) return; // skip if it would clip a mountain/prop
     const rock = this.box(s, s * 0.78, s * 0.9, s > 0.78 ? 0x8a8f98 : 0x767c85);
     rock.position.set(x, s * 0.39, z);
     this.scene.add(rock);
-    this.occluders.push(rock);
-    this.addCutout(rock.material);
+    const strength = { value: 0 };
+    this.occluders.push({ object: rock, strength, cx: x, cz: z });
+    this.addCutout(rock.material, strength);
     this.obstacles.push({ x, z, r: s * 0.55 + 0.32 });
   }
 
@@ -841,12 +1276,23 @@ export class SceneEngine {
     reel.position.set(rodBaseX - Math.sin(rodLean) * 0.7, Math.cos(rodLean) * 0.7, rodBaseZ + 0.09);
     h.add(rod, reel);
 
-    this.scene.add(h); // centred at island origin
-    this.occluders.push(h);
+    // collapse the ~100 house cubes into a handful of merged meshes (keeps the
+    // lantern's PointLight, which isn't a mesh), then wire up the see-through cutout
+    const meshes: THREE.Mesh[] = [];
     h.traverse((o) => {
-      const m = o as THREE.Mesh;
-      if (m.isMesh) this.addCutout(m.material);
+      if ((o as THREE.Mesh).isMesh) meshes.push(o as THREE.Mesh);
     });
+    const merged = this.mergeByMaterial(meshes);
+    for (const mesh of meshes) {
+      mesh.removeFromParent();
+      (mesh.geometry as THREE.BufferGeometry).dispose();
+    }
+    for (const mm of merged) h.add(mm);
+
+    this.scene.add(h); // centred at island origin
+    const strength = { value: 0 };
+    this.occluders.push({ object: h, strength, cx: 0, cz: 0 });
+    for (const mm of merged) this.addCutout(mm.material, strength);
   }
 
   private buildCharacter(): void {
@@ -1252,13 +1698,14 @@ export class SceneEngine {
   }
 
   private inRegion(x: number, z: number): boolean {
-    const onIsland = Math.abs(x) <= 6.35 && Math.abs(z) <= 6.35;
-    const onDock = Math.abs(x) <= 0.9 && z >= 6.0 && z <= 10.5;
+    const onIsland = this.beyondShore(x, z) <= 0.35;
+    const onDock = Math.abs(x) <= 0.9 && z >= this.dockBase - 0.5 && z <= this.dockBase + this.dockLen - 0.5;
     return onIsland || onDock;
   }
 
   private groundHeight(x: number, z: number): number {
-    if (Math.abs(x) <= 1.0 && z >= 6.0 && z <= 11.0) return 0.09; // wooden dock surface
+    if (Math.abs(x) <= 1.0 && z >= this.dockBase - 0.5 && z <= this.dockBase + this.dockLen - 0.5)
+      return 0.09; // dock surface
     return 0;
   }
 
@@ -1379,6 +1826,7 @@ export class SceneEngine {
       this.setEquipped(false); // line fully reeled in → now stow the rod
     }
     this.animateWater(t);
+    this.animateSeaLife(t);
     this.updateSplash(dt);
 
     // keep the camera centred on the player (same angle, follows them)
@@ -1390,14 +1838,27 @@ export class SceneEngine {
     // player, dissolve a soft circle in whatever stands in front of them
     this.camera.updateMatrixWorld();
     this._cc.set(this.character.position.x, this.character.position.y + 1.1, this.character.position.z);
-    // 1) is the camera→player line of sight blocked by an obstacle?
+    // 1) which obstacles actually block the camera→player line of sight? ramp each
+    //    occluder's own strength independently so only the ones on the ray fade —
+    //    a tree merely overlapping the player on screen stays solid
     this._cdir.copy(this._cc).sub(this.camera.position);
     const camDist = this._cdir.length();
     this._cdir.normalize();
     this.raycaster.set(this.camera.position, this._cdir);
     this.raycaster.far = camDist - 0.8;
-    const occluded = this.raycaster.intersectObjects(this.occluders, true).length > 0;
-    this.holeU.strength.value += ((occluded ? 1 : 0) - this.holeU.strength.value) * Math.min(1, dt * 10);
+    const k = Math.min(1, dt * 10);
+    const px = this.character.position.x;
+    const pz = this.character.position.z;
+    for (const occ of this.occluders) {
+      // broad-phase: only props near the player can sit on the camera→player line,
+      // so skip the raycast for the rest (they ramp back to solid)
+      const dx = occ.cx - px;
+      const dz = occ.cz - pz;
+      // within ~11 units (covers the widest mountain footprint) → do the precise ray
+      const blocking =
+        dx * dx + dz * dz < 121 && this.raycaster.intersectObject(occ.object, true).length > 0;
+      occ.strength.value += ((blocking ? 1 : 0) - occ.strength.value) * k;
+    }
     // 2) track the player's screen position + view depth so the hole follows them
     this._cdir.copy(this._cc).project(this.camera);
     this.holeU.center.value.set(this._cdir.x, this._cdir.y);
@@ -1424,17 +1885,8 @@ export class SceneEngine {
   }
 
   private animateWater(t: number): void {
-    if (!this.water || !this.waterBase) return;
-    // --- unchanged: per-vertex wave displacement the bobber depends on ---
-    const pos = this.water.geometry.attributes['position'] as THREE.BufferAttribute;
-    const arr = pos.array as Float32Array;
-    const base = this.waterBase;
-    for (let i = 0; i < arr.length; i += 3) {
-      arr[i + 1] = this.waveAt(base[i], base[i + 2], t);
-    }
-    pos.needsUpdate = true;
-
-    this.waterUniforms.uTime.value = t; // drives the foam + depth animation in the shader
+    // waves + foam are now fully GPU-side; just advance the shader clock
+    this.waterUniforms.uTime.value = t;
   }
 
   // --------------------------------------------------------------- lifecycle
