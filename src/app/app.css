@@ -4,19 +4,21 @@
   z-index: 10;
   pointer-events: none;
   user-select: none;
-  color: #eaf2f8;
-  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  color: #4a2f14;
+  font-family: Georgia, 'Times New Roman', serif;
 }
 
-/* generic glass panel */
+/* generic wooden RPG panel — parchment inside a carved-wood frame (matches the inventory) */
 .panel {
-  background: rgba(14, 20, 30, 0.55);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 14px;
+  background:
+    linear-gradient(180deg, rgba(255, 250, 235, 0.3), rgba(120, 80, 40, 0.12)),
+    linear-gradient(180deg, #efdcb0, #e0c489);
+  border: 4px solid #5a3a1c;
+  border-radius: 12px;
   box-shadow:
-    0 6px 20px rgba(0, 0, 0, 0.35),
-    inset 0 1px 0 rgba(255, 255, 255, 0.08);
-  backdrop-filter: blur(6px);
+    inset 0 0 0 2px #9c6a35,
+    inset 0 0 18px rgba(120, 80, 40, 0.3),
+    0 7px 22px rgba(0, 0, 0, 0.5);
 }
 
 /* ---- player frame (top-left) ---- */
@@ -40,7 +42,8 @@
   border-radius: 12px;
   background: linear-gradient(160deg, #f7d3a8, #e6b483);
   box-shadow:
-    0 0 0 2px #e3c878,
+    0 0 0 3px #5a3a1c,
+    inset 0 0 0 1px #9c6a35,
     0 2px 6px rgba(0, 0, 0, 0.4);
   overflow: hidden;
 }
@@ -85,6 +88,8 @@
   font-weight: 700;
   font-size: 15px;
   letter-spacing: 0.3px;
+  color: #4a2f14;
+  text-shadow: 0 1px 0 rgba(255, 250, 235, 0.5);
 }
 .plevel {
   font-size: 11px;
@@ -97,11 +102,14 @@
 
 .bar {
   position: relative;
-  height: 14px;
-  border-radius: 8px;
-  background: rgba(0, 0, 0, 0.4);
+  height: 15px;
+  border-radius: 5px;
+  background: #3a2618;
   overflow: hidden;
-  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.5);
+  border: 2px solid #5a3a1c;
+  box-shadow:
+    inset 0 1px 3px rgba(0, 0, 0, 0.6),
+    inset 0 0 0 1px #9c6a35;
 }
 .bar i {
   position: absolute;
@@ -123,7 +131,8 @@
   justify-content: center;
   font-size: 10px;
   font-weight: 700;
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.7);
+  color: #fff8e6;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.85);
 }
 
 /* ---- top-right: wallet + minimap ---- */
@@ -146,22 +155,24 @@
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 5px 12px;
-  border-radius: 999px;
-  background: rgba(14, 20, 30, 0.6);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.3);
+  padding: 4px 12px;
+  border-radius: 8px;
+  background: linear-gradient(180deg, #efdcb0, #e0c489);
+  border: 2px solid #5a3a1c;
+  box-shadow:
+    inset 0 0 0 1px #9c6a35,
+    0 3px 10px rgba(0, 0, 0, 0.4);
+  color: #4a2f14;
   font-weight: 700;
   font-size: 13px;
+  text-shadow: 0 1px 0 rgba(255, 250, 235, 0.5);
 }
 .pill b {
   font-size: 14px;
 }
-.pill.gold {
-  color: #ffd76b;
-}
+.pill.gold,
 .pill.gem {
-  color: #8fe1ff;
+  color: #4a2f14;
 }
 
 .minimap {
@@ -183,6 +194,7 @@
   transform: translateX(-50%);
   font-size: 10px;
   font-weight: 800;
+  color: #f3e2bd; /* cream — sits over the dark water of the map */
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
 }
 .minimap .coords {
@@ -192,52 +204,99 @@
   transform: translateX(-50%);
   font-size: 10px;
   font-weight: 600;
-  opacity: 0.85;
+  color: #f3e2bd;
+  opacity: 0.9;
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
 }
 
-/* ---- action bar (bottom-center) ---- */
+/* ---- action bar (bottom-center): roll cooldown + Minecraft hotbar ---- */
 .hotbar {
   position: absolute;
-  bottom: 18px;
+  bottom: 16px;
   left: 50%;
-  transform: translateX(-50%) scale(1.2);
-  transform-origin: bottom center;
+  transform: translateX(-50%);
   display: flex;
-  gap: 8px;
+  align-items: center;
+  gap: 10px;
 }
-.slot {
+
+/* ---- wooden RPG slots (shared by hotbar + inventory) ---- */
+.mc-hotbar {
+  display: flex;
+  padding: 6px;
+  border-radius: 10px;
+  background: linear-gradient(180deg, #6b4a2a, #4f3318);
+  border: 2px solid #321f0e;
+  box-shadow:
+    inset 0 1px 0 rgba(214, 170, 110, 0.5),
+    0 5px 16px rgba(0, 0, 0, 0.5);
+  pointer-events: auto;
+}
+.mc-slot {
   position: relative;
-  width: 52px;
-  height: 52px;
-  border-radius: 12px;
-  background: rgba(14, 20, 30, 0.55);
-  border: 1px solid rgba(255, 255, 255, 0.14);
+  width: 58px;
+  height: 58px;
+  margin: 3px;
+  border-radius: 8px;
+  /* a parchment socket carved into the wood */
+  background: radial-gradient(circle at 50% 38%, #f3e2bd, #d8be8e);
+  border: 2px solid #8a5a2e;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 24px;
+  cursor: pointer;
   box-shadow:
-    0 4px 12px rgba(0, 0, 0, 0.3),
-    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+    inset 0 2px 4px rgba(74, 46, 18, 0.45),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.35);
 }
-.slot.empty {
-  opacity: 0.5;
+.mc-slot:hover {
+  background: radial-gradient(circle at 50% 38%, #fff1d2, #e6cf9f);
+  border-color: #b07a3a;
 }
-.slot.on {
-  border-color: #ffd45e;
-  box-shadow:
-    0 0 0 2px rgba(255, 212, 94, 0.5),
-    0 4px 14px rgba(255, 200, 60, 0.35);
+.mc-slot .ic {
+  font-size: 34px;
+  line-height: 1;
+  pointer-events: none;
+  filter: drop-shadow(0 1px 1px rgba(60, 36, 12, 0.45));
 }
-.slot b {
+/* pixel-art sprite icons (crisp, no smoothing) */
+.mc-slot img.ic {
+  width: 52px;
+  height: 52px;
+  object-fit: contain;
+  image-rendering: pixelated;
+}
+.mc-held img.ic {
+  width: 56px;
+  height: 56px;
+  object-fit: contain;
+  image-rendering: pixelated;
+}
+img.rollcd-icon {
+  position: relative;
+  z-index: 1;
+  width: 48px;
+  height: 48px;
+  image-rendering: pixelated;
+}
+.mc-slot .ct {
   position: absolute;
-  right: 4px;
-  bottom: 2px;
-  font-size: 10px;
-  font-weight: 700;
-  color: #cfe0ee;
-  opacity: 0.8;
+  right: 2px;
+  bottom: 0;
+  font-size: 14px;
+  font-weight: 800;
+  font-style: normal;
+  color: #fff8e6;
+  text-shadow: 1px 1px 0 #5a3a18;
+  pointer-events: none;
+}
+/* the active slot gets a glowing copper frame */
+.mc-slot.sel {
+  border-color: #e8a23a;
+  box-shadow:
+    0 0 0 2px #e8a23a,
+    0 0 12px rgba(232, 162, 58, 0.7),
+    inset 0 2px 4px rgba(74, 46, 18, 0.3);
 }
 
 /* ---- controls legend (bottom-left) ---- */
@@ -248,33 +307,35 @@
   transform: scale(1.2);
   transform-origin: bottom left;
   font-size: 12px;
-  opacity: 0.82;
-  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.6);
+  color: #f3e2bd; /* cream — the legend floats over the 3D scene, not a panel */
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.85);
 }
 .legend b {
-  padding: 1px 6px;
-  border-radius: 5px;
-  background: rgba(255, 255, 255, 0.14);
+  padding: 1px 7px;
+  border-radius: 4px;
+  background: #5a3a1c;
+  border: 1px solid #9c6a35;
+  color: #f3e2bd;
   font-weight: 700;
 }
 
 /* ---- roll cooldown (left of the hotbar slots) ---- */
 .rollcd {
   position: relative;
-  width: 52px;
-  height: 52px;
+  width: 58px;
+  height: 58px;
   margin-right: 10px;
-  border-radius: 12px;
-  background: rgba(14, 20, 30, 0.55);
-  border: 1px solid rgba(127, 208, 255, 0.55);
+  border-radius: 8px;
+  background: radial-gradient(circle at 50% 38%, #f3e2bd, #d8be8e);
+  border: 3px solid #8a5a2e;
   display: flex;
   align-items: center;
   justify-content: center;
   font-size: 24px;
   overflow: hidden;
   box-shadow:
-    0 0 0 2px rgba(127, 208, 255, 0.3),
-    0 4px 12px rgba(0, 0, 0, 0.3);
+    inset 0 2px 4px rgba(74, 46, 18, 0.4),
+    0 4px 12px rgba(0, 0, 0, 0.4);
 }
 /* dark sweep that shrinks from full → empty as the cooldown elapses */
 .rollcd-fill {
@@ -304,18 +365,18 @@
   position: absolute;
   right: 4px;
   bottom: 2px;
-  z-index: 2;
+  z-index: 3;
   font-size: 10px;
   font-weight: 700;
-  color: #cfe0ee;
-  opacity: 0.85;
+  color: #4a2f14;
+  text-shadow: 0 1px 0 rgba(255, 250, 235, 0.5);
 }
-/* dim + drop the ready glow while recharging */
+/* dim the glow while recharging (keep the wood frame) */
 .rollcd.cooling {
-  border-color: rgba(255, 255, 255, 0.14);
+  border-color: #6b4a2a;
   box-shadow:
-    0 4px 12px rgba(0, 0, 0, 0.3),
-    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+    inset 0 2px 4px rgba(74, 46, 18, 0.4),
+    0 4px 12px rgba(0, 0, 0, 0.35);
 }
 .rollcd.cooling .rollcd-icon {
   opacity: 0.4;
@@ -331,4 +392,80 @@
   -webkit-backdrop-filter: blur(4px);
   -webkit-mask-image: radial-gradient(ellipse 72% 72% at 50% 50%, transparent 58%, #000 100%);
   mask-image: radial-gradient(ellipse 72% 72% at 50% 50%, transparent 58%, #000 100%);
+}
+
+/* ---- wooden RPG inventory screen (toggled with E / I) ---- */
+.inventory {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: auto;
+}
+.inv-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(20, 10, 2, 0.55);
+  backdrop-filter: blur(2px);
+}
+/* a parchment panel set inside a thick carved-wood frame */
+.mc-window {
+  position: relative;
+  padding: 16px;
+  border-radius: 14px;
+  background:
+    linear-gradient(180deg, rgba(255, 250, 235, 0.35), rgba(120, 80, 40, 0.15)),
+    linear-gradient(180deg, #efdcb0, #e0c489);
+  border: 7px solid #5a3a1c;
+  box-shadow:
+    inset 0 0 0 2px #9c6a35,
+    /* copper inner rule */ inset 0 0 26px rgba(120, 80, 40, 0.4),
+    0 18px 50px rgba(0, 0, 0, 0.6);
+  font-family: Georgia, 'Times New Roman', serif;
+}
+.mc-title {
+  margin: 0 2px 12px;
+  padding-bottom: 8px;
+  color: #4a2f14;
+  font-weight: 700;
+  font-size: 19px;
+  letter-spacing: 1px;
+  text-align: center;
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.5);
+  border-bottom: 2px solid rgba(120, 80, 40, 0.45);
+}
+.mc-grid {
+  display: grid;
+  grid-template-columns: repeat(9, max-content);
+  justify-content: center;
+}
+/* the hotbar row sits a little apart, below the main bag */
+.mc-hotrow {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 2px solid rgba(120, 80, 40, 0.5);
+  box-shadow: inset 0 1px 0 rgba(255, 250, 235, 0.45);
+}
+
+/* the stack lifted onto the cursor while dragging */
+.mc-held {
+  position: fixed;
+  z-index: 50;
+  pointer-events: none;
+  transform: translate(-50%, -50%);
+  filter: drop-shadow(2px 3px 3px rgba(0, 0, 0, 0.5));
+}
+.mc-held .ic {
+  font-size: 32px;
+}
+.mc-held .ct {
+  position: absolute;
+  right: -4px;
+  bottom: -6px;
+  font-size: 15px;
+  font-weight: 800;
+  color: #fff8e6;
+  text-shadow: 1px 1px 0 #5a3a18;
 }

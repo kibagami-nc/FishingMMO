@@ -2,6 +2,14 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 
+/** One stack of an item sitting in an inventory slot. */
+export interface ItemStack {
+  id: string;
+  icon: string;
+  name: string;
+  count: number;
+}
+
 /** Live state pushed to the HUD each frame. */
 export interface HudState {
   rollCd: number;
@@ -19,6 +27,10 @@ export interface HudState {
   bx: number;
   bz: number;
   casting: boolean;
+  equipped: boolean;
+  selectedHotbar: number;
+  invOpen: boolean;
+  invVersion: number;
 }
 
 /**
@@ -75,10 +87,31 @@ export class SceneEngine {
   private ropeRestCur = 0.1; // animates between reeled-in and cast-out
   private fishing = false; // line cast into the water
   private pendingStow = false; // unequip asked while the line is out → reel in first, then stow
+  private retractFast = false; // float hit land → reel back in quickly (not the slow normal reel)
   private castT = 1; // cast animation progress (1 = idle): wind-up → throw → settle
   private castThrown = false; // whether this cast's throw impulse has fired
-  private eHold = 0; // seconds the E key has been held
-  private eFired = false; // whether the long-press fish already fired this hold
+  // bite mechanic: once the float is anchored on water, a fish bites after a random wait;
+  // reeling in DURING the bite window lands the catch, otherwise it gets away
+  private biteTimer = 0; // seconds until the next bite (counts down while anchored, no bite)
+  private biting = false; // a fish is currently tugging the float
+  private biteWindow = 0; // seconds left to react during a bite
+  private biteSplashT = 0; // throttles the water splashes while a fish thrashes
+  private biteMarker?: THREE.Group; // red "!" that pops above the float during a bite
+  // Inventory: 45 slots laid out as a 5×9 grid — row 0 (slots [0..8]) is also the hotbar.
+  // Each slot holds a stack or null; items are dragged between slots from the HUD.
+  private readonly slots: (ItemStack | null)[] = new Array(45).fill(null);
+  private selectedHotbar = 0; // active hotbar slot (its item is "in hand")
+  private invOpen = false;
+  private held: ItemStack | null = null; // stack picked up by the cursor while dragging
+  private heldFrom = -1; // slot the held stack came from (to return / swap)
+  private invVersion = 0; // bumps on any inventory change so the HUD re-renders
+  private readonly fishKinds: ItemStack[] = [
+    { id: 'sardine', icon: '/sprites/sardine.png', name: 'Sardine', count: 1 },
+    { id: 'dorade', icon: '/sprites/dorade.png', name: 'Dorade', count: 1 },
+    { id: 'globe', icon: '🐡', name: 'Poisson-globe', count: 1 }, // TODO sprite (quota épuisé)
+    { id: 'crabe', icon: '🦀', name: 'Crabe', count: 1 }, // TODO sprite
+    { id: 'calmar', icon: '🦑', name: 'Calmar', count: 1 }, // TODO sprite
+  ];
 
   private water?: THREE.Mesh;
   private readonly waterY = -0.7;
@@ -89,6 +122,17 @@ export class SceneEngine {
   // swaying seaweed + swimming fish placed on the sand, animated each frame
   private readonly seaweed: { mesh: THREE.Group; phase: number; bend: number }[] = [];
   private readonly fish: { mesh: THREE.Group; cx: number; cz: number; r: number; y: number; speed: number; phase: number }[] = [];
+  // pet cat that wanders the island: static core merged to one mesh; the legs + tail are
+  // separate groups so the walk cycle and tail sway can animate them
+  private cat?: THREE.Group;
+  private catTail?: THREE.Group;
+  private catLegs: { g: THREE.Group; o: number }[] = [];
+  private catTargetX = 0;
+  private catTargetZ = 0;
+  private catPauseT = 0;
+  private catHeading = 0;
+  private catWalkPhase = 0;
+  private catStuck = 0;
   // shared time uniform driving the animated caustics in the water shader
   private readonly waterUniforms: { uTime: { value: number } } = { uTime: { value: 0 } };
   // procedural shimmer texture scrolled across the surface (two layers, opposite drift)
@@ -155,7 +199,10 @@ export class SceneEngine {
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
     this.renderer.setSize(width, height);
     this.renderer.shadowMap.enabled = true;
-    this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    // VSM (variance) shadows for a genuinely SMOOTH penumbra. PCFSoftShadowMap is
+    // deprecated in three r184 and silently downgrades to hard PCFShadowMap, so the
+    // soft look has to come from VSM's blurred variance map (see buildLights()).
+    this.renderer.shadowMap.type = THREE.VSMShadowMap;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = 1.05;
     container.appendChild(this.renderer.domElement);
@@ -180,20 +227,25 @@ export class SceneEngine {
     this.buildLights();
     this.buildWater();
     this.buildSplash();
+    this.buildBiteMarker();
     this.buildIsland();
     this.buildSeabed();
     this.buildSeaLife();
     this.buildScenery();
     this.buildHouse();
+    this.buildVegetation();
+    this.buildCat();
     this.scene.add(this.character);
     this.buildCharacter();
     this.character.position.set(0, 0, 4.5); // spawn in front of the house, not inside it
     this.character.rotation.y = Math.PI;
     this.heading = Math.PI;
+    this.initInventory();
 
     window.addEventListener('keydown', this.onKeyDown);
     window.addEventListener('keyup', this.onKeyUp);
     window.addEventListener('mousedown', this.onMouseDown);
+    window.addEventListener('wheel', this.onWheel, { passive: true });
 
     this.ro = new ResizeObserver(() => this.resize());
     this.ro.observe(container);
@@ -313,14 +365,23 @@ export class SceneEngine {
     sun.position.set(12, 20, 8);
     sun.castShadow = true;
     sun.shadow.mapSize.set(2048, 2048);
+    // soft-shadow blur: VSM honours these (PCF would ignore radius). Higher samples
+    // keep the wide penumbra free of banding.
+    sun.shadow.radius = 4;
+    sun.shadow.blurSamples = 16;
     const c = sun.shadow.camera;
-    c.left = -30;
-    c.right = 30;
-    c.top = 30;
-    c.bottom = -30;
-    c.near = 1;
-    c.far = 80;
-    sun.shadow.bias = -0.0004;
+    // tighten the frustum around the island: ~46 texels/unit instead of ~34, so the
+    // shadow map stays crisp under the blur rather than going chunky.
+    c.left = -24;
+    c.right = 24;
+    c.top = 24;
+    c.bottom = -24;
+    c.near = 2;
+    c.far = 70;
+    // VSM compares depth moments, so it needs far less depth bias than PCF; lean on a
+    // small normalBias to keep the flat grass acne-free without peter-panning the cubes.
+    sun.shadow.bias = -0.0002;
+    sun.shadow.normalBias = 0.04;
     this.scene.add(sun);
   }
 
@@ -879,7 +940,7 @@ export class SceneEngine {
       if (!c) continue;
       const w = this.makeSeaweed(i + 1);
       w.position.set(c.x, c.top, c.z);
-      w.scale.setScalar(0.28 + this.det(i + 0.3) * 0.22);
+      w.scale.setScalar(0.42 + this.det(i + 0.3) * 0.3);
       this.scene.add(w);
       this.seaweed.push({ mesh: w, phase: i * 0.7, bend: 0.12 + this.det(i + 0.8) * 0.12 });
     }
@@ -1013,6 +1074,274 @@ export class SceneEngine {
     this.occluders.push({ object: rock, strength, cx: x, cz: z });
     this.addCutout(rock.material, strength);
     this.obstacles.push({ x, z, r: s * 0.55 + 0.32 });
+  }
+
+  /** Scatter decorative land plants — leafy bushes, flower clumps, grass tufts — across
+   *  the island grass. Purely visual (no collision); each clump is merged to one mesh. */
+  private buildVegetation(): void {
+    for (const [x, z, s] of [
+      [-3.5, 3.2, 1.0], [3.2, 2.4, 0.9], [-6, -1, 1.1], [6.5, -1.5, 1.0],
+      [-2, 6.5, 0.85], [4.5, 6, 1.0], [-9, 3, 1.1], [9, 3.5, 0.9],
+      [2.6, -3.2, 0.8], [-4.5, -6, 1.0], [11, -2, 1.0], [-11, -5, 0.95],
+    ] as const) {
+      this.addBush(x, z, s);
+    }
+    [
+      [-2.2, 2.6], [2.2, 3.8], [-4, 1.2], [4.4, 1.0], [-1.6, 5.6], [3.4, 5.2],
+      [-7, 1], [7, 1.6], [1.2, -2.6], [-3, -4.6], [5.6, 4.6], [-6.6, 5],
+    ].forEach(([x, z], i) => this.addFlowerClump(x, z, i + 1));
+    [
+      [-1.2, 3], [1.6, 2.0], [-3.2, 4.6], [3.9, 3.0], [-5, 2.6], [5.3, 2.2],
+      [0.8, 5.9], [-2.8, 6.3], [6, 4.2], [-8, 1.6], [8.6, 1], [-1, -3.4],
+      [2.9, -4], [-5.6, -3], [10, 2.2], [-10, 1.4],
+    ].forEach(([x, z], i) => this.addGrassTuft(x, z, i + 1));
+  }
+
+  /** A rounded leafy bush: a clump of green cubes merged into one vertex-coloured mesh. */
+  private addBush(x: number, z: number, s: number): void {
+    if (this.beyondShore(x, z) > -0.8) return; // keep on land
+    if (this.blocked(x, z, s * 0.6)) return; // not inside a tree/rock/mountain
+    const greens = [0x4f8f3a, 0x5aa044, 0x437d31];
+    const blobs: [number, number, number, number][] = [
+      [0, 0.3, 0, 0.66], [-0.26, 0.46, 0.08, 0.48], [0.28, 0.44, -0.06, 0.5],
+      [0.04, 0.58, 0.16, 0.44], [-0.1, 0.64, -0.16, 0.38],
+    ];
+    const cubes = blobs.map((b, i) => {
+      const c = this.box(b[3], b[3], b[3], greens[i % greens.length]);
+      c.position.set(b[0], b[1], b[2]);
+      return c;
+    });
+    const bush = this.mergeColored(cubes);
+    for (const c of cubes) (c.geometry as THREE.BufferGeometry).dispose();
+    bush.position.set(x, 0, z);
+    bush.scale.setScalar(s);
+    this.scene.add(bush);
+  }
+
+  /** A little clump of stemmed flowers in mixed colours (one merged mesh, no shadow). */
+  private addFlowerClump(x: number, z: number, seed: number): void {
+    if (this.beyondShore(x, z) > -0.6) return;
+    if (this.blocked(x, z, 0.5)) return;
+    const cols = [0xe8556d, 0xf2c14e, 0xe87fb0, 0xf4f4f4, 0x9b6fd0, 0xff8c42];
+    const cubes: THREE.Mesh[] = [];
+    const n = 3 + Math.floor(this.det(seed + 0.3) * 3);
+    for (let f = 0; f < n; f++) {
+      const fx = (this.det(seed + f) - 0.5) * 0.7;
+      const fz = (this.det(seed + f + 9) - 0.5) * 0.7;
+      const h = 0.2 + this.det(seed + f + 3) * 0.18;
+      const stem = this.box(0.05, h, 0.05, 0x4f8f3a);
+      stem.position.set(fx, h / 2, fz);
+      const bloom = this.box(0.13, 0.12, 0.13, cols[(seed + f) % cols.length]);
+      bloom.position.set(fx, h + 0.04, fz);
+      cubes.push(stem, bloom);
+    }
+    const clump = this.mergeColored(cubes);
+    for (const c of cubes) (c.geometry as THREE.BufferGeometry).dispose();
+    clump.castShadow = false; // tiny — skip the shadow cost/noise
+    clump.position.set(x, 0, z);
+    this.scene.add(clump);
+  }
+
+  /** A tuft of leaning grass blades (one merged mesh, no shadow). */
+  private addGrassTuft(x: number, z: number, seed: number): void {
+    if (this.beyondShore(x, z) > -0.5) return;
+    if (this.blocked(x, z, 0.4)) return;
+    const greens = [0x6ab150, 0x5aa044, 0x7cc25a];
+    const cubes: THREE.Mesh[] = [];
+    const n = 3 + Math.floor(this.det(seed + 1.1) * 3);
+    for (let b = 0; b < n; b++) {
+      const bx = (this.det(seed + b) - 0.5) * 0.4;
+      const bz = (this.det(seed + b + 5) - 0.5) * 0.4;
+      const h = 0.28 + this.det(seed + b + 2) * 0.22;
+      const blade = this.box(0.07, h, 0.07, greens[b % greens.length]);
+      blade.position.set(bx, h / 2, bz);
+      blade.rotation.x = (this.det(seed + b + 7) - 0.5) * 0.3; // gentle lean
+      cubes.push(blade);
+    }
+    const tuft = this.mergeColored(cubes);
+    for (const c of cubes) (c.geometry as THREE.BufferGeometry).dispose();
+    tuft.castShadow = false;
+    tuft.position.set(x, 0, z);
+    this.scene.add(tuft);
+  }
+
+  /**
+   * A ginger-tabby cat that wanders the island. Its static core (torso, head, face, ears,
+   * stripes) is merged into ONE vertex-coloured mesh; the four legs and the tail are kept
+   * as separate groups so animateCat() can drive a walk cycle and a swaying tail. The cat
+   * strolls between random grass points chosen by pickCatTarget().
+   */
+  private buildCat(): void {
+    const fur = 0xe0903f, furDk = 0xb5651d, belly = 0xf6e3cb, pink = 0xe88a96,
+      eye = 0x9ed04a, dark = 0x221a13;
+    const cat = new THREE.Group();
+
+    // static core (torso + head + face), merged to one mesh
+    const core: THREE.Mesh[] = [];
+    const B = (w: number, h: number, d: number, c: number, x: number, y: number, z: number, rotZ = 0): void => {
+      const m = this.box(w, h, d, c);
+      m.position.set(x, y, z);
+      if (rotZ) m.rotation.z = rotZ;
+      core.push(m);
+    };
+    B(0.3, 0.3, 0.62, fur, 0, 0.54, 0); // torso
+    B(0.24, 0.12, 0.52, belly, 0, 0.44, 0); // cream belly underside
+    B(0.22, 0.22, 0.16, fur, 0, 0.6, 0.32); // neck
+    B(0.34, 0.32, 0.32, fur, 0, 0.7, 0.46); // head
+    B(0.2, 0.14, 0.12, belly, 0, 0.64, 0.62); // muzzle
+    B(0.07, 0.05, 0.05, pink, 0, 0.67, 0.68); // nose
+    B(0.08, 0.09, 0.04, eye, -0.09, 0.76, 0.61);
+    B(0.08, 0.09, 0.04, eye, 0.09, 0.76, 0.61);
+    B(0.03, 0.06, 0.05, dark, -0.09, 0.76, 0.625);
+    B(0.03, 0.06, 0.05, dark, 0.09, 0.76, 0.625);
+    B(0.15, 0.15, 0.07, fur, -0.11, 0.9, 0.42, Math.PI / 4); // pointed ears (diamonds)
+    B(0.15, 0.15, 0.07, fur, 0.11, 0.9, 0.42, Math.PI / 4);
+    B(0.07, 0.07, 0.05, pink, -0.11, 0.88, 0.45, Math.PI / 4); // pink inner ear
+    B(0.07, 0.07, 0.05, pink, 0.11, 0.88, 0.45, Math.PI / 4);
+    B(0.32, 0.06, 0.1, furDk, 0, 0.69, -0.12); // back stripes
+    B(0.3, 0.06, 0.1, furDk, 0, 0.69, 0.12);
+    B(0.24, 0.05, 0.08, furDk, 0, 0.86, 0.46); // head stripe
+    const coreMesh = this.mergeColored(core);
+    for (const m of core) (m.geometry as THREE.BufferGeometry).dispose();
+    cat.add(coreMesh);
+
+    // four legs as separate pivots so they swing in the walk cycle
+    const makeLeg = (x: number, z: number): THREE.Group => {
+      const pivot = new THREE.Group();
+      pivot.position.set(x, 0.4, z);
+      const leg = this.box(0.12, 0.4, 0.13, fur);
+      leg.position.set(0, -0.2, 0);
+      const paw = this.box(0.13, 0.1, 0.17, belly);
+      paw.position.set(0, -0.35, 0.03);
+      leg.castShadow = true;
+      paw.castShadow = true;
+      pivot.add(leg, paw);
+      cat.add(pivot);
+      return pivot;
+    };
+    // diagonal gait: front-left & back-right swing together, the other pair opposite
+    this.catLegs = [
+      { g: makeLeg(-0.11, 0.22), o: 0 },
+      { g: makeLeg(0.11, 0.22), o: Math.PI },
+      { g: makeLeg(-0.11, -0.22), o: Math.PI },
+      { g: makeLeg(0.11, -0.22), o: 0 },
+    ];
+
+    // tail: a raised, curling chain kept separate so it can sway
+    const tail = new THREE.Group();
+    tail.position.set(0, 0.58, -0.32);
+    const tcol = [fur, fur, fur, furDk];
+    const tpos: [number, number, number][] = [[0, 0.02, -0.08], [0, 0.1, -0.2], [0, 0.22, -0.28], [0, 0.34, -0.3]];
+    tpos.forEach((p, i) => {
+      const seg = this.box(i < 3 ? 0.12 : 0.1, 0.13, 0.14, tcol[i]);
+      seg.position.set(p[0], p[1], p[2]);
+      seg.castShadow = true;
+      tail.add(seg);
+    });
+    cat.add(tail);
+    this.catTail = tail;
+
+    cat.position.set(2.0, 0, 4.8);
+    this.catHeading = Math.PI / 4;
+    cat.rotation.y = this.catHeading;
+    this.catTargetX = 2.0;
+    this.catTargetZ = 4.8;
+    this.catPauseT = 1.5; // settle a moment before the first stroll
+    this.scene.add(cat);
+    this.cat = cat;
+  }
+
+  /** Pick a fresh wander target on the grass — on land, clear of the house and props. */
+  private pickCatTarget(): void {
+    for (let i = 0; i < 24; i++) {
+      const a = Math.random() * Math.PI * 2;
+      const r = 1.5 + Math.random() * 7.5;
+      const x = Math.cos(a) * r;
+      const z = 1 + Math.sin(a) * r; // wander centred a little in front of the house
+      if (this.beyondShore(x, z) > -1.5) continue; // keep well clear of the shore
+      if (Math.abs(x) < 2.9 && Math.abs(z) < 2.9) continue; // not into the house
+      if (this.blocked(x, z, 0.45)) continue; // not into a tree / rock / mountain
+      this.catTargetX = x;
+      this.catTargetZ = z;
+      return;
+    }
+    this.catPauseT = 1; // nowhere good this time — wait and retry
+  }
+
+  /** Wander the cat between idle pauses: walk to the target, swing the legs, sway the tail. */
+  private animateCat(dt: number, t: number): void {
+    const cat = this.cat;
+    if (!cat) return;
+    let moving = false;
+    if (this.catPauseT > 0) {
+      this.catPauseT -= dt;
+      if (this.catPauseT <= 0) this.pickCatTarget();
+    } else {
+      const dx = this.catTargetX - cat.position.x;
+      const dz = this.catTargetZ - cat.position.z;
+      const dist = Math.hypot(dx, dz);
+      if (dist < 0.12) {
+        this.catPauseT = 1.5 + Math.random() * 3; // arrived → sit a while
+      } else {
+        moving = true;
+        const desired = Math.atan2(dx, dz);
+        this.catHeading += this.shortestAngle(this.catHeading, desired) * Math.min(1, dt * 6);
+        cat.rotation.y = this.catHeading;
+        const step = Math.min(dist, 1.4 * dt);
+        let nx = cat.position.x + Math.sin(this.catHeading) * step;
+        let nz = cat.position.z + Math.cos(this.catHeading) * step;
+        // collide with props + the house so the cat never walks through objects — it
+        // slides along them, exactly like the player does in resolveMove()
+        for (const o of this.obstacles) {
+          const ox = nx - o.x;
+          const oz = nz - o.z;
+          const d2 = ox * ox + oz * oz;
+          if (d2 < o.r * o.r) {
+            const d = Math.sqrt(d2) || 1e-4;
+            nx = o.x + (ox / d) * o.r;
+            nz = o.z + (oz / d) * o.r;
+          }
+        }
+        if (Math.abs(nx) < this.houseHalf.x && Math.abs(nz) < this.houseHalf.z) {
+          const penX = this.houseHalf.x - Math.abs(nx);
+          const penZ = this.houseHalf.z - Math.abs(nz);
+          if (penX <= penZ) nx = (nx < 0 ? -1 : 1) * this.houseHalf.x;
+          else nz = (nz < 0 ? -1 : 1) * this.houseHalf.z;
+        }
+        const intoWater = this.beyondShore(nx, nz) > -0.3;
+        const advanced = intoWater ? 0 : Math.hypot(nx - cat.position.x, nz - cat.position.z);
+        if (!intoWater) {
+          cat.position.x = nx;
+          cat.position.z = nz;
+        }
+        // wedged against something (or the shore)? give up and stroll somewhere else
+        if (advanced < step * 0.4) {
+          this.catStuck += dt;
+          if (this.catStuck > 0.4) {
+            this.catStuck = 0;
+            this.pickCatTarget();
+          }
+        } else {
+          this.catStuck = 0;
+        }
+        this.catWalkPhase += dt * 10;
+      }
+    }
+    // legs: swing while walking, ease back to standing when idle
+    const k = Math.min(1, dt * 10);
+    for (const leg of this.catLegs) {
+      const tgt = moving ? Math.sin(this.catWalkPhase + leg.o) * 0.5 : 0;
+      leg.g.rotation.x += (tgt - leg.g.rotation.x) * k;
+    }
+    // body bounce while walking; a gentle breathing scale while idle
+    const bob = moving ? Math.abs(Math.sin(this.catWalkPhase)) * 0.03 : 0;
+    cat.position.y += (bob - cat.position.y) * k;
+    cat.scale.y = 1 + (moving ? 0 : Math.sin(t * 2.2) * 0.02);
+    // tail always sways, livelier on the move
+    if (this.catTail) {
+      this.catTail.rotation.y = Math.sin(t * (moving ? 3 : 1.6)) * (moving ? 0.3 : 0.22);
+      this.catTail.rotation.x = Math.sin(t * 1.1 + 0.5) * 0.08;
+    }
   }
 
   /** A flat triangle mesh (used for the gable ends of the roof). */
@@ -1297,7 +1626,7 @@ export class SceneEngine {
 
   private buildCharacter(): void {
     const skin = 0xf2c79b;
-    const shirt = 0xd64545;
+    const shirt = 0x3f7ed1; // blue t-shirt
     const pants = 0x33485a;
     const straw = 0xe3c878;
     const ch = this.character;
@@ -1318,7 +1647,7 @@ export class SceneEngine {
     eyeL.position.set(-0.13, 1.74, 0.28);
     const eyeR = this.box(0.08, 0.1, 0.04, 0x222222);
     eyeR.position.set(0.13, 1.74, 0.28);
-    const brim = this.box(0.82, 0.08, 0.82, straw);
+    const brim = this.box(0.82, 0.08, 0.82, 0xd4b878); // darker straw → a value step below the crown
     brim.position.set(0, 1.99, 0);
     const crown = this.box(0.5, 0.26, 0.5, straw);
     crown.position.set(0, 2.15, 0);
@@ -1338,6 +1667,8 @@ export class SceneEngine {
     this.rodTip.position.set(0, 0, 2.2);
     this.rodGroup.add(rod, reel, this.rodTip);
     this.armR.add(this.rodGroup);
+
+    this.addCharacterDetail();
 
     ch.traverse((o) => {
       const m = o as THREE.Mesh;
@@ -1375,6 +1706,105 @@ export class SceneEngine {
     this.setEquipped(this.equipped);
   }
 
+  /**
+   * Extra detail layered onto the blocky fisherman so he reads as a character, not a
+   * mannequin: a face (nose, mouth, brows), brown hair under the straw hat, a hat band
+   * with a little fishing-fly tucked in, an open olive vest with pockets over the red
+   * shirt, a leather belt, rolled-up sleeves with bare hands, and rubber boots.
+   *
+   * Each part is parented to match how the body moves: hands + rolled sleeves ride the
+   * arm pivots (so they swing and grip the rod), boots ride the leg pivots (so they
+   * walk), and everything else hangs off `rig` so it somersaults with the body during a
+   * roll. Nothing here touches legL/legR/armL/armR/rig/rodGroup, so the walk, roll and
+   * cast animations are unchanged — this is purely additive geometry.
+   */
+  private addCharacterDetail(): void {
+    const skin = 0xf2c79b;
+    const skinDk = 0xe3b083;
+    const shirt = 0x3f7ed1; // blue t-shirt (matches the torso)
+    const hair = 0x5a3a22;
+    const hairLt = 0x6e4a2c; // lighter strands to break up the hair
+    const boot = 0x4a3a2e; // lightened so the darker cuff reads as a separate step from above
+    const bootCuff = 0x2a221d;
+    const beltC = 0x4a3320;
+    const buckle = 0xd4b24a;
+    const bandC = 0x7a4a2c;
+    const lure = 0xef476f;
+    const feather = 0xf4f4f4;
+    const mouthC = 0x9c5446;
+
+    const add = (
+      parent: THREE.Object3D,
+      w: number,
+      h: number,
+      d: number,
+      color: number,
+      x: number,
+      y: number,
+      z: number,
+    ): THREE.Mesh => {
+      const m = this.box(w, h, d, color);
+      m.position.set(x, y, z);
+      parent.add(m);
+      return m;
+    };
+
+    // neck: bridges the torso top (y≈1.42) and head so the head isn't a floating cube
+    add(this.rig, 0.24, 0.18, 0.24, skin, 0, 1.45, 0);
+
+    // face — the head front sits at z≈0.28; the existing eyes are at y1.74
+    add(this.rig, 0.12, 0.12, 0.1, skinDk, 0, 1.64, 0.3); // nose
+    add(this.rig, 0.22, 0.05, 0.04, mouthC, 0, 1.55, 0.285); // mouth
+    add(this.rig, 0.13, 0.04, 0.05, hair, -0.13, 1.8, 0.285); // brow L (just above the eyes)
+    add(this.rig, 0.13, 0.04, 0.05, hair, 0.13, 1.8, 0.285); // brow R
+
+    // hair: SHORT and irregular. A thin ring just under the brim (y1.74→1.94) still wraps
+    // every head corner (the L/R pieces reach z±0.31, the back reaches x±0.31), so no bare
+    // corner shows; the look comes from uneven tufts of VARIED length hanging below it — a
+    // jagged hairline, not a straight slab. Tops stay ≤1.94 (brim is 1.95) and inner faces
+    // embed ~0.03 into the head, so nothing is coplanar (no z-fighting).
+    add(this.rig, 0.1, 0.2, 0.62, hair, -0.3, 1.84, 0); // ring: left (front+back corners)
+    add(this.rig, 0.1, 0.2, 0.62, hair, 0.3, 1.84, 0); // ring: right
+    add(this.rig, 0.62, 0.2, 0.1, hair, 0, 1.84, -0.3); // ring: back (both back corners)
+    add(this.rig, 0.13, 0.18, 0.12, hair, -0.26, 1.73, -0.26); // tuft back-left (long)
+    add(this.rig, 0.11, 0.12, 0.13, hairLt, -0.31, 1.77, 0.06); // tuft left (short)
+    add(this.rig, 0.12, 0.14, 0.11, hairLt, 0.26, 1.76, -0.27); // tuft back-right (short)
+    add(this.rig, 0.1, 0.2, 0.14, hair, 0.31, 1.72, 0.06); // tuft right (long)
+    add(this.rig, 0.14, 0.1, 0.08, hair, -0.1, 1.89, 0.27); // irregular fringe
+    add(this.rig, 0.1, 0.06, 0.08, hairLt, 0.04, 1.91, 0.27);
+    add(this.rig, 0.12, 0.12, 0.08, hair, 0.16, 1.88, 0.27);
+
+    // hat band + a fishing fly tucked into it (the crown base is ~y2.04)
+    add(this.rig, 0.54, 0.09, 0.54, bandC, 0, 2.05, 0);
+    add(this.rig, 0.09, 0.09, 0.07, lure, 0.17, 2.07, 0.28);
+    const fly = add(this.rig, 0.05, 0.13, 0.04, feather, 0.17, 2.16, 0.27);
+    fly.rotation.z = 0.3;
+    // a lighter, sun-hit cap stepped onto the crown top — the hat is the biggest shape
+    // the top-down camera sees, so a value step there reads more than any face cube
+    add(this.rig, 0.42, 0.08, 0.42, 0xf0d99a, 0, 2.3, 0);
+
+    // leather belt at the waist with a brass buckle
+    add(this.rig, 0.76, 0.13, 0.45, beltC, 0, 0.72, 0);
+    add(this.rig, 0.13, 0.13, 0.05, buckle, 0, 0.72, 0.23);
+
+    // rolled sleeves + bare hands on each arm pivot (pivot-local: shoulder = y0, the arm
+    // hangs to y≈-0.7). The right hand sits a touch forward to grip the rod.
+    for (const [arm, handZ] of [
+      [this.armL, 0.02],
+      [this.armR, 0.05],
+    ] as const) {
+      add(arm, 0.22, 0.36, 0.28, skin, 0, -0.54, 0); // bare forearm
+      add(arm, 0.25, 0.08, 0.3, shirt, 0, -0.34, 0); // rolled-sleeve cuff
+      add(arm, 0.2, 0.18, 0.26, skin, 0, -0.74, handZ); // hand
+    }
+
+    // rubber boots on each leg pivot (pivot-local: hip = y0, foot ≈ y-0.7), toe forward
+    for (const leg of [this.legL, this.legR]) {
+      add(leg, 0.3, 0.26, 0.44, boot, 0, -0.58, 0.07); // boot
+      add(leg, 0.31, 0.08, 0.31, bootCuff, 0, -0.45, 0); // boot cuff
+    }
+  }
+
   // ---------------------------------------------------------------- fishing
 
   private setEquipped(on: boolean): void {
@@ -1389,11 +1819,12 @@ export class SceneEngine {
   }
 
   private toggleEquip(): void {
-    if (!this.equipped) {
-      this.setEquipped(true);
-      return;
-    }
-    // unequipping while the line is still out → reel it in first, stow once it's home
+    if (!this.equipped) this.setEquipped(true);
+    else this.stowRod();
+  }
+
+  /** Reel the line in if it's out, then stow the rod (shared by the hotbar + debug hook). */
+  private stowRod(): void {
     if (this.isFishingBusy()) {
       this.fishing = false; // start the reel-in animation
       this.bobberAnchored = false; // release the float so it comes back to the rod
@@ -1403,22 +1834,121 @@ export class SceneEngine {
     }
   }
 
-  /** Long-press E or left-click: cast the line out / reel it back in. */
+  // ------------------------------------------------------------- inventory
+
+  /** Seed the starting inventory: a rod in hotbar slot 0, a stack of bait beside it. */
+  private initInventory(): void {
+    this.slots[0] = { id: 'rod', icon: '/sprites/rod.png', name: 'Canne à pêche', count: 1 };
+    this.slots[1] = { id: 'bait', icon: '/sprites/bait.png', name: 'Vers', count: 12 };
+    this.refreshEquip();
+  }
+
+  /** The rod is "in hand" (equipped) exactly when the selected hotbar slot holds it. */
+  private refreshEquip(): void {
+    const wantRod = this.slots[this.selectedHotbar]?.id === 'rod';
+    if (wantRod && !this.equipped) this.setEquipped(true);
+    else if (!wantRod && this.equipped) this.stowRod();
+  }
+
+  /** Add one of an item to the inventory: stack onto a matching slot, else first empty. */
+  private addItem(stack: ItemStack): void {
+    const existing = this.slots.find((s) => s?.id === stack.id);
+    if (existing) existing.count += stack.count;
+    else {
+      const empty = this.slots.findIndex((s) => !s);
+      if (empty >= 0) this.slots[empty] = { ...stack };
+    }
+    this.invVersion++;
+  }
+
+  /** Select hotbar slot n (0..8); its item becomes the one in hand. */
+  selectHotbar(n: number): void {
+    if (n < 0 || n > 8) return;
+    this.selectedHotbar = n;
+    this.refreshEquip();
+    this.invVersion++;
+  }
+
+  /** Show / hide the inventory grid (E or I). Returns any held stack when closing. */
+  toggleInventory(): void {
+    this.invOpen = !this.invOpen;
+    if (!this.invOpen && this.held) this.returnHeld();
+    this.invVersion++;
+  }
+
+  /** Lift the stack out of slot i onto the cursor (start of a drag). */
+  pickUp(i: number): void {
+    if (this.held || i < 0 || i >= this.slots.length || !this.slots[i]) return;
+    this.held = this.slots[i];
+    this.heldFrom = i;
+    this.slots[i] = null;
+    this.invVersion++;
+  }
+
+  /** Drop the cursor stack onto slot j: fill empty, merge same kind, or swap. */
+  placeAt(j: number): void {
+    if (!this.held || j < 0 || j >= this.slots.length) return;
+    const target = this.slots[j];
+    if (!target) {
+      this.slots[j] = this.held;
+    } else if (target.id === this.held.id) {
+      target.count += this.held.count; // merge stacks
+    } else {
+      this.slots[j] = this.held; // swap: displaced item goes back to the origin slot
+      this.slots[this.heldFrom] = target;
+    }
+    this.held = null;
+    this.heldFrom = -1;
+    this.refreshEquip();
+    this.invVersion++;
+  }
+
+  /** Put the cursor stack back where it came from (drop outside any slot). */
+  returnHeld(): void {
+    if (!this.held) return;
+    if (this.heldFrom >= 0 && !this.slots[this.heldFrom]) this.slots[this.heldFrom] = this.held;
+    else {
+      const empty = this.slots.findIndex((s) => !s);
+      if (empty >= 0) this.slots[empty] = this.held;
+    }
+    this.held = null;
+    this.heldFrom = -1;
+    this.refreshEquip();
+    this.invVersion++;
+  }
+
+  /** Read-only view of all 36 slots for the HUD to render. */
+  getSlots(): readonly (ItemStack | null)[] {
+    return this.slots;
+  }
+
+  /** The stack currently held on the cursor (for the floating drag icon), or null. */
+  getHeld(): ItemStack | null {
+    return this.held;
+  }
+
+  /** Left-click on the canvas: cast the line out / reel it back in. */
   private fishAction(): void {
     if (!this.equipped) return; // need the rod in hand
-    const reelingInCatch = this.fishing && this.bobberAnchored; // line was out on the water
+    const caught = this.fishing && this.bobberAnchored && this.biting; // reeled in mid-bite
     this.fishing = !this.fishing;
     this.bobberAnchored = false; // unpin the float on each cast / reel
+    this.biting = false; // any reel/cast clears the current bite
+    this.biteWindow = 0;
+    this.retractFast = false; // a manual cast/reel uses the normal speeds
     if (this.fishing) {
       this.castT = 0; // play the arm animation only when casting out (not when reeling in)
       this.castThrown = false;
-    } else if (reelingInCatch) {
+    } else if (caught) {
       this.catchFish();
     }
   }
 
   /** Reeling a line in from the water lands a catch: coins, XP and the odd gem. */
   private catchFish(): void {
+    // land a fish into the inventory, biased toward the common kinds
+    const kind = this.fishKinds[Math.floor(Math.pow(Math.random(), 1.8) * this.fishKinds.length)];
+    this.addItem(kind);
     this.coins += 3 + Math.floor(Math.random() * 10); // +3..12 coins
     this.xp += 8 + Math.floor(Math.random() * 11); // +8..18 xp
     if (Math.random() < 0.2) this.gems += 1; // occasional gem
@@ -1432,6 +1962,56 @@ export class SceneEngine {
       this.maxHp += 10;
       this.hp = this.maxHp; // heal on level up
     }
+  }
+
+  /**
+   * Drives the bite cycle once the float is anchored on water: count down to a bite, then
+   * open a short window (the float plunges + the water splashes) during which reeling in
+   * lands the fish; let it lapse and the fish slips off and we wait for the next one.
+   */
+  private updateBite(dt: number): void {
+    if (!this.fishing || !this.bobberAnchored) return;
+    if (this.biting) {
+      this.biteWindow -= dt;
+      // keep the water churning while the fish thrashes
+      this.biteSplashT -= dt;
+      if (this.biteSplashT <= 0) {
+        const surf = this.support(this.bobberAnchor.x, this.bobberAnchor.z, this.clock.elapsedTime);
+        this.triggerSplash(this.bobberAnchor.x, surf, this.bobberAnchor.z);
+        this.biteSplashT = 0.5;
+      }
+      if (this.biteWindow <= 0) {
+        this.biting = false; // the fish got away — try again
+        this.biteTimer = 2 + Math.random() * 4;
+      }
+    } else {
+      this.biteTimer -= dt;
+      if (this.biteTimer <= 0) {
+        this.biting = true; // a fish is on the hook!
+        this.biteWindow = 2.2; // seconds to react and reel in
+        this.biteSplashT = 0;
+      }
+    }
+  }
+
+  /** A blocky red "!" (stroke + dot) that floats above the float while a fish is biting. */
+  private buildBiteMarker(): void {
+    const g = new THREE.Group();
+    const part = (w: number, h: number, d: number, y: number): void => {
+      const m = this.box(w, h, d, 0xff2b2b);
+      m.position.set(0, y, 0);
+      m.castShadow = false;
+      m.receiveShadow = false;
+      const mat = m.material as THREE.MeshStandardMaterial;
+      mat.emissive = new THREE.Color(0xff3b3b);
+      mat.emissiveIntensity = 1.1; // glows so it pops against the blue water
+      g.add(m);
+    };
+    part(0.16, 0.4, 0.16, 0.48); // stroke (small gap above the dot)
+    part(0.16, 0.15, 0.16, 0); // dot below
+    g.visible = false;
+    this.scene.add(g);
+    this.biteMarker = g;
   }
 
   /** Advances the cast: a wind-up then a forward whip that flings the line out. */
@@ -1463,7 +2043,9 @@ export class SceneEngine {
   private updateRope(dt: number, t: number): void {
     const pts = this.rope;
     const restTarget = this.fishing && this.castThrown ? this.ropeRestCast : this.ropeRest;
-    const restRate = this.fishing ? 12 : 3; // deploy fast on cast, reel back in slowly
+    // deploy fast on cast (12), reel back in slowly (3) — but snap back quickly (16) when
+    // the float landed on land/dock instead of water
+    const restRate = this.fishing ? 12 : this.retractFast ? 16 : 3;
     this.ropeRestCur += (restTarget - this.ropeRestCur) * Math.min(1, dt * restRate);
     this.rodTip.updateWorldMatrix(true, false);
     const tip = this.rodTip.getWorldPosition(this._tmp);
@@ -1520,21 +2102,38 @@ export class SceneEngine {
     if (last.pos.y < surf) {
       last.pos.y = surf;
       last.prev.y = surf; // kill vertical velocity
-      // the first time it touches the water (after a cast), pin it there
+      // the first time the cast lands: pin the float ONLY if it hit water (surf < -0.1).
+      // Grass (0.06) and dock (0.12) aren't water → reel the line straight back in.
       if (this.fishing && !this.bobberAnchored) {
-        this.bobberAnchored = true;
-        this.bobberAnchor.set(last.pos.x, 0, last.pos.z);
-        if (surf < -0.1) this.triggerSplash(last.pos.x, surf, last.pos.z); // cubic splash on water
+        if (surf < -0.1) {
+          this.bobberAnchored = true;
+          this.bobberAnchor.set(last.pos.x, 0, last.pos.z);
+          this.triggerSplash(last.pos.x, surf, last.pos.z); // cubic splash on water
+          this.biteTimer = 2.5 + Math.random() * 3.5; // a fish bites after a short wait
+          this.biting = false;
+        } else {
+          this.fishing = false; // landed on land/dock — retract immediately, no catch
+          this.retractFast = true; // snap the line back in quickly
+        }
       }
       last.prev.x = last.pos.x - (last.pos.x - last.prev.x) * 0.5; // damp drift
       last.prev.z = last.pos.z - (last.pos.z - last.prev.z) * 0.5;
     }
-    // while anchored, hold the float at its landing spot — only bob with the waves
+    // while anchored, hold the float at its landing spot — only bob with the waves.
+    // During a bite the float is yanked under with a quick stutter + side jitter.
     if (this.bobberAnchored) {
-      last.pos.x = this.bobberAnchor.x;
-      last.pos.z = this.bobberAnchor.z;
-      last.pos.y = this.support(this.bobberAnchor.x, this.bobberAnchor.z, t);
-      last.prev.set(last.pos.x, last.pos.y, last.pos.z);
+      const surfA = this.support(this.bobberAnchor.x, this.bobberAnchor.z, t);
+      let bx = this.bobberAnchor.x;
+      let bz = this.bobberAnchor.z;
+      let by = surfA;
+      if (this.biting) {
+        const pull = Math.max(0, Math.sin(t * 16)); // 0..1, rapid downward tugs
+        by = surfA - 0.32 * pull - 0.06; // plunge under the surface
+        bx += Math.sin(t * 23) * 0.03; // nervous side jitter
+        bz += Math.cos(t * 19) * 0.03;
+      }
+      last.pos.set(bx, by, bz);
+      last.prev.set(bx, by, bz);
     }
 
     // push positions to the line geometry + place the bobber
@@ -1552,11 +2151,18 @@ export class SceneEngine {
 
   private readonly onKeyDown = (e: KeyboardEvent): void => {
     const k = e.key.toLowerCase();
-    if (k === 'e' && !e.repeat) {
-      this.eHold = 0; // start tracking the press (tap = equip, hold = fish)
-      this.eFired = false;
-    }
     if (k === 'shift' && !e.repeat) this.startRoll();
+    // hotbar shortcuts on ANY layout: match the physical number row by e.code
+    // (Digit1-9 / Numpad1-9), with the literal AZERTY characters &é"'(-è_ç as a fallback
+    if (!e.repeat) {
+      const m = /^(?:Digit|Numpad)([1-9])$/.exec(e.code);
+      const slot = m ? +m[1] - 1 : '&é"\'(-è_ç'.indexOf(e.key);
+      if (slot >= 0 && slot <= 8) {
+        this.selectHotbar(slot);
+        e.preventDefault(); // e.g. stop the browser's quick-find on " ' "
+      }
+    }
+    if ((k === 'e' || k === 'i') && !e.repeat) this.toggleInventory(); // open/close inventory
     this.keys.add(k);
     if (['arrowup', 'arrowdown', 'arrowleft', 'arrowright', ' '].includes(k)) {
       e.preventDefault();
@@ -1564,13 +2170,18 @@ export class SceneEngine {
   };
 
   private readonly onKeyUp = (e: KeyboardEvent): void => {
-    const k = e.key.toLowerCase();
-    if (k === 'e' && !this.eFired && this.eHold < 0.4) this.toggleEquip(); // a tap toggles the rod
-    this.keys.delete(k);
+    this.keys.delete(e.key.toLowerCase());
   };
 
   private readonly onMouseDown = (e: MouseEvent): void => {
-    if (e.button === 0) this.fishAction(); // left click → fish
+    // only the canvas fishes — clicks on the HUD (hotbar, inventory) must not cast
+    if (e.button === 0 && e.target === this.renderer.domElement) this.fishAction();
+  };
+
+  private readonly onWheel = (e: WheelEvent): void => {
+    // mouse wheel cycles the selected hotbar slot (Minecraft-style)
+    const dir = e.deltaY > 0 ? 1 : -1;
+    this.selectHotbar((this.selectedHotbar + dir + 9) % 9);
   };
 
   // ------------------------------------------------------------------ update
@@ -1698,7 +2309,11 @@ export class SceneEngine {
   }
 
   private inRegion(x: number, z: number): boolean {
-    const onIsland = this.beyondShore(x, z) <= 0.35;
+    // Walkable only where a real grass cube sits under the player's centre cell. The grass
+    // is built per integer cell (a cube exists where beyondShore(cell) <= 0), so test that
+    // SAME cell instead of a fuzzy continuous margin — otherwise the player walks a little
+    // past the lumpy shore onto cells that have no cube and floats over the water.
+    const onIsland = this.beyondShore(Math.round(x), Math.round(z)) <= 0;
     const onDock = Math.abs(x) <= 0.9 && z >= this.dockBase - 0.5 && z <= this.dockBase + this.dockLen - 0.5;
     return onIsland || onDock;
   }
@@ -1781,14 +2396,6 @@ export class SceneEngine {
     if (this.rollCooldown > 0) this.rollCooldown = Math.max(0, this.rollCooldown - dt);
     if (this.hp < this.maxHp) this.hp = Math.min(this.maxHp, this.hp + 8 * dt); // slow HP regen
 
-    if (this.keys.has('e')) {
-      this.eHold += dt;
-      if (!this.eFired && this.eHold >= 0.4 && this.equipped) {
-        this.eFired = true;
-        this.fishAction(); // long-press E → fish
-      }
-    }
-
     let moving = false;
     if (this.rolling) {
       this.updateRoll(dt);
@@ -1821,12 +2428,26 @@ export class SceneEngine {
     this.animateLimbs(moving, dt, t);
     this.updateEquipAnim(dt);
     if (this.equipped) this.updateRope(dt, t);
+    this.updateBite(dt);
+    if (this.biteMarker) {
+      // the red "!" shows only during a bite, floating above the float's spot
+      this.biteMarker.visible = this.biting && this.bobberAnchored;
+      if (this.biteMarker.visible) {
+        const surf = this.support(this.bobberAnchor.x, this.bobberAnchor.z, t);
+        this.biteMarker.position.set(
+          this.bobberAnchor.x,
+          surf + 0.85 + Math.sin(t * 6) * 0.05,
+          this.bobberAnchor.z,
+        );
+      }
+    }
     if (this.pendingStow && !this.isFishingBusy()) {
       this.pendingStow = false;
       this.setEquipped(false); // line fully reeled in → now stow the rod
     }
     this.animateWater(t);
     this.animateSeaLife(t);
+    this.animateCat(dt, t);
     this.updateSplash(dt);
 
     // keep the camera centred on the player (same angle, follows them)
@@ -1881,6 +2502,10 @@ export class SceneEngine {
       bx: this.bobber.position.x,
       bz: this.bobber.position.z,
       casting: this.fishing || this.bobberAnchored,
+      equipped: this.equipped,
+      selectedHotbar: this.selectedHotbar,
+      invOpen: this.invOpen,
+      invVersion: this.invVersion,
     });
   }
 
@@ -1932,6 +2557,7 @@ export class SceneEngine {
     window.removeEventListener('keydown', this.onKeyDown);
     window.removeEventListener('keyup', this.onKeyUp);
     window.removeEventListener('mousedown', this.onMouseDown);
+    window.removeEventListener('wheel', this.onWheel);
     this.controls.dispose();
     this.scene.traverse((o) => {
       const geo = (o as THREE.Mesh).geometry;

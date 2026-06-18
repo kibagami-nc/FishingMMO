@@ -23,7 +23,17 @@ export class Game implements AfterViewInit, OnDestroy {
   private engine?: SceneEngine;
 
   private readonly el: Record<string, HTMLElement | null> = {};
-  private last = { coins: -1, gems: -1, level: -1, hpPct: -1, coords: '' };
+  private last = {
+    coins: -1,
+    gems: -1,
+    level: -1,
+    hpPct: -1,
+    coords: '',
+    selectedHotbar: -1,
+    invVersion: -1,
+    invOpen: false,
+  };
+  private heldEl?: HTMLElement; // floating stack that follows the cursor while dragging
 
   constructor(private readonly zone: NgZone) {}
 
@@ -31,7 +41,94 @@ export class Game implements AfterViewInit, OnDestroy {
     this.zone.runOutsideAngular(() => {
       this.engine = new SceneEngine(this.hostRef.nativeElement, this.renderHud);
       this.engine.start();
+      this.setupHud();
     });
+  }
+
+  /** Wire pointer drag-and-drop + hotbar selection for the Minecraft hotbar / inventory. */
+  private setupHud(): void {
+    const eng = this.engine;
+    if (!eng) return;
+    document.addEventListener('mousedown', (ev) => {
+      const slot = (ev.target as HTMLElement | null)?.closest('[data-idx]') as HTMLElement | null;
+      if (!slot) return;
+      const idx = Number(slot.dataset['idx']);
+      if (!slot.closest('#inventory')) {
+        eng.selectHotbar(idx); // a tap on the closed hotbar just selects that slot
+        return;
+      }
+      ev.preventDefault(); // an inventory slot starts a drag: pick up (or place if holding)
+      if (eng.getHeld()) eng.placeAt(idx);
+      else eng.pickUp(idx);
+      this.updateHeld(ev);
+    });
+    document.addEventListener('mousemove', (ev) => this.moveHeld(ev));
+    document.addEventListener('mouseup', (ev) => {
+      if (!eng.getHeld()) return;
+      const el = document.elementFromPoint(ev.clientX, ev.clientY) as HTMLElement | null;
+      const slot = el?.closest('[data-idx]') as HTMLElement | null;
+      if (slot && slot.closest('#inventory')) eng.placeAt(Number(slot.dataset['idx']));
+      else eng.returnHeld(); // dropped outside any slot → snap back
+      this.updateHeld(ev);
+    });
+  }
+
+  /** Show / refresh / hide the floating stack that follows the cursor while dragging. */
+  private updateHeld(ev: MouseEvent): void {
+    const held = this.engine?.getHeld() ?? null;
+    if (held) {
+      if (!this.heldEl) {
+        this.heldEl = document.createElement('div');
+        this.heldEl.className = 'mc-held';
+        document.body.appendChild(this.heldEl);
+      }
+      this.heldEl.innerHTML = `${this.iconHtml(held.icon)}${held.count > 1 ? `<i class="ct">${held.count}</i>` : ''}`;
+      this.moveHeld(ev);
+    } else if (this.heldEl) {
+      this.heldEl.remove();
+      this.heldEl = undefined;
+    }
+  }
+
+  private moveHeld(ev: MouseEvent): void {
+    if (this.heldEl) {
+      this.heldEl.style.left = ev.clientX + 'px';
+      this.heldEl.style.top = ev.clientY + 'px';
+    }
+  }
+
+  /** A slot/cursor icon: a pixel-art <img> when it's a sprite path, else the emoji text. */
+  private iconHtml(icon: string): string {
+    return icon.includes('/')
+      ? `<img class="ic" src="${icon}" alt="" draggable="false">`
+      : `<span class="ic">${icon}</span>`;
+  }
+
+  /** Rebuild the hotbar (and, when open, the inventory grids) from the engine's slots. */
+  private renderSlots(selected: number, invOpen: boolean): void {
+    const eng = this.engine;
+    if (!eng) return;
+    const slots = eng.getSlots();
+    const row = (from: number, to: number): string => {
+      let h = '';
+      for (let i = from; i < to; i++) {
+        const st = slots[i];
+        const sel = i === selected ? ' sel' : '';
+        const inner = st
+          ? `${this.iconHtml(st.icon)}${st.count > 1 ? `<i class="ct">${st.count}</i>` : ''}`
+          : '';
+        h += `<div class="mc-slot${sel}" data-idx="${i}">${inner}</div>`;
+      }
+      return h;
+    };
+    const bar = this.grab('hotbar-bar');
+    if (bar) bar.innerHTML = row(0, 9);
+    if (invOpen) {
+      const main = this.grab('inv-main');
+      if (main) main.innerHTML = row(9, 45); // main bag: 4×9 (slots 9-44)
+      const hot = this.grab('inv-hotbar');
+      if (hot) hot.innerHTML = row(0, 9); // hotbar row, separated at the bottom
+    }
   }
 
   ngOnDestroy(): void {
@@ -81,6 +178,24 @@ export class Game implements AfterViewInit, OnDestroy {
       this.last.gems = s.gems;
       const e = this.grab('gems');
       if (e) e.textContent = String(s.gems);
+    }
+
+    // inventory panel open / close
+    if (s.invOpen !== this.last.invOpen) {
+      this.last.invOpen = s.invOpen;
+      const inv = this.grab('inventory');
+      if (inv) inv.style.display = s.invOpen ? '' : 'none';
+      if (!s.invOpen && this.heldEl) {
+        this.heldEl.remove();
+        this.heldEl = undefined;
+      }
+      this.renderSlots(s.selectedHotbar, s.invOpen);
+    }
+    // re-render the slots whenever the inventory contents or the selection change
+    if (s.invVersion !== this.last.invVersion || s.selectedHotbar !== this.last.selectedHotbar) {
+      this.last.invVersion = s.invVersion;
+      this.last.selectedHotbar = s.selectedHotbar;
+      this.renderSlots(s.selectedHotbar, s.invOpen);
     }
 
     // minimap player marker (position + facing) and coordinates

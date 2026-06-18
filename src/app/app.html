@@ -85,23 +85,29 @@
     </div>
   </section>
 
-  <!-- Action bar (bottom-center) — roll cooldown sits left of the slots -->
+  <!-- Action bar (bottom-center): roll cooldown + the 9-slot Minecraft hotbar (filled by game.ts) -->
   <section class="hotbar">
     <div id="rollcd" class="rollcd" title="Roulade (Maj)">
       <div id="rollcd-fill" class="rollcd-fill"></div>
-      <span class="rollcd-icon">🤸</span>
+      <img class="rollcd-icon" src="/sprites/dodge.png" alt="" />
       <span id="rollcd-time" class="rollcd-time"></span>
       <b>Maj</b>
     </div>
-    <div class="slot on"><span>🎣</span><b>1</b></div>
-    <div class="slot"><span>🐟</span><b>2</b></div>
-    <div class="slot"><span>🪱</span><b>3</b></div>
-    <div class="slot empty"><b>4</b></div>
-    <div class="slot empty"><b>5</b></div>
+    <div class="mc-hotbar" id="hotbar-bar"></div>
   </section>
+
+  <!-- Minecraft-style inventory (toggled with E / I) — main grid + hotbar row, filled by game.ts -->
+  <div class="inventory" id="inventory" style="display: none">
+    <div class="inv-backdrop" id="inv-backdrop"></div>
+    <div class="mc-window">
+      <div class="mc-title">Inventaire</div>
+      <div class="mc-grid" id="inv-main"></div>
+      <div class="mc-grid mc-hotrow" id="inv-hotbar"></div>
+    </div>
+  </div>
 
   <!-- Controls legend (bottom-left) -->
   <div class="legend">
-    <b>ZQSD</b> déplacer&nbsp;·&nbsp;<b>Maj</b> roulade&nbsp;·&nbsp;<b>E</b> canne&nbsp;·&nbsp;<b>clic</b> pêcher
+    <b>ZQSD</b> déplacer&nbsp;·&nbsp;<b>Maj</b> roulade&nbsp;·&nbsp;<b>1-9</b> objets&nbsp;·&nbsp;<b>clic</b> pêcher&nbsp;·&nbsp;<b>E</b> inventaire
   </div>
 </div>
